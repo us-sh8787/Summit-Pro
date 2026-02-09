@@ -1,0 +1,1054 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summit Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overscroll-behavior: none;
+        }
+        .timer-ring {
+            transform: rotate(-90deg);
+            transform-origin: center;
+        }
+        .habit-checkbox:checked + label {
+            background-color: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+        .rest-timer-active {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            opacity: 1;
+            height: 40px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="app" class="max-w-4xl mx-auto pb-20"></div>
+
+    <script>
+        // Storage wrapper with error handling
+        const storage = {
+            get: async (key) => {
+                try {
+                    const result = await window.storage.get(key);
+                    return result ? JSON.parse(result.value) : null;
+                } catch (error) {
+                    console.error('Storage get error:', error);
+                    return null;
+                }
+            },
+            set: async (key, value) => {
+                try {
+                    await window.storage.set(key, JSON.stringify(value));
+                    return true;
+                } catch (error) {
+                    console.error('Storage set error:', error);
+                    return false;
+                }
+            },
+            list: async (prefix) => {
+                try {
+                    const result = await window.storage.list(prefix);
+                    return result ? result.keys : [];
+                } catch (error) {
+                    console.error('Storage list error:', error);
+                    return [];
+                }
+            }
+        };
+
+        // State management
+        let state = {
+            currentView: 'workout',
+            workouts: [],
+            habits: [],
+            activeTimer: null,
+            currentWorkout: null,
+            workoutProgram: null
+        };
+
+        // Initialize
+        async function init() {
+            await loadData();
+            render();
+        }
+
+        async function loadData() {
+            const workoutsData = await storage.get('workouts');
+            const habitsData = await storage.get('habits');
+            const programData = await storage.get('workout-program');
+            
+            state.workouts = workoutsData || [];
+            
+            // Initialize with default habits if none exist
+            state.habits = habitsData || [
+                { name: '💧 100oz Water', frequency: 'Daily', target: 1, completions: [] },
+                { name: '📖 Read 10 Pages / 15 Min', frequency: 'Daily', target: 1, completions: [] },
+                { name: '☀️ 20 Min Sunlight', frequency: 'Daily', target: 1, completions: [] },
+                { name: '❤️ Show Wife Affection', frequency: 'Daily', target: 1, completions: [] },
+                { name: '💪 Resistance Training', frequency: 'Weekly', target: 4, completions: [] },
+                { name: '🏃 30 Min Zone 2 Cardio', frequency: 'Weekly', target: 3, completions: [] },
+                { name: '⚡ Zone 5 Cardio', frequency: 'Weekly', target: 1, completions: [] },
+                { name: '🧘 Morning Routine (Breathwork, Meditation, Prayer, Gratitude, Mindset)', frequency: 'Weekly', target: 5, completions: [] },
+                { name: '🍎 Track Macros & Follow Food Rules', frequency: 'Weekly', target: 6, completions: [] }
+            ];
+            
+            // Save default habits if this is first load
+            if (!habitsData) {
+                await saveHabits();
+            }
+            
+            // Initialize with custom 4-day Upper/Lower program if none exists
+            state.workoutProgram = programData || {
+                name: "Upper/Lower Hypertrophy",
+                duration: 6,
+                split: [
+                    "Lower A - Quad/Hip Dominant (Big Box - Monday)",
+                    "Upper A - Horizontal Push/Pull (Tuesday)",
+                    "Lower B - Posterior/Unilateral (Thursday)",
+                    "Upper B - Vertical Push/Pull (Friday)"
+                ],
+                startDate: new Date().toISOString(),
+                programDetails: {
+                    "Lower A - Quad/Hip Dominant (Big Box - Monday)": {
+                        mobility: [
+                            "90/90 Hip Stretch: 2x60 sec each side",
+                            "Spiderman Lunge w/ Rotation: 2x6 each side",
+                            "Dead Bugs: 2x10 each side",
+                            "Couch Stretch: 2x45 sec each side"
+                        ],
+                        exercises: [
+                            { name: "Leg Press", sets: "4x10-12", rest: "2-3 min", notes: "Tempo: 3010, control the descent" },
+                            { name: "Smith Machine Bulgarian Split Squat", sets: "4x8-10/leg", rest: "2 min", notes: "Back foot elevated, front shin vertical" },
+                            { name: "Smith Machine RDL", sets: "3x12-15", rest: "90 sec", notes: "Tempo: 3110, feel the stretch" },
+                            { name: "Superset A1: Leg Extension", sets: "2x15-20", rest: "60 sec", notes: "Last set: drop set to failure" },
+                            { name: "Superset A2: Lying Leg Curl", sets: "2x15-20", rest: "60 sec", notes: "Last set: drop set to failure" },
+                            { name: "Superset B1: Standing Calf Raise", sets: "3x12-15", rest: "45 sec", notes: "2 sec hold at top" },
+                            { name: "Superset B2: Seated Calf Raise", sets: "3x15-20", rest: "45 sec", notes: "Burn out" }
+                        ]
+                    },
+                    "Upper A - Horizontal Push/Pull (Tuesday)": {
+                        mobility: [
+                            "Band Pull-Aparts: 2x20",
+                            "Wall Slides: 2x10",
+                            "Thoracic Rotations (Quadruped): 2x8 each side",
+                            "Cat-Cow: 2x10"
+                        ],
+                        exercises: [
+                            { name: "DB Bench Press", sets: "4x8-10", rest: "2-3 min", notes: "Tempo: 3010 (3 sec down, 1 sec up)" },
+                            { name: "Chest Supported Row (or Seal Row)", sets: "4x10-12", rest: "2 min", notes: "Squeeze at top for 1 sec" },
+                            { name: "Superset A1: Incline DB Press", sets: "3x12-15", rest: "90 sec", notes: "Moderate tempo" },
+                            { name: "Superset A2: Single Arm DB Row", sets: "3x12-15/arm", rest: "90 sec", notes: "Control the eccentric" },
+                            { name: "Superset B1: DB Lateral Raise", sets: "2x15-20", rest: "60 sec", notes: "Light weight, strict form" },
+                            { name: "Superset B2: Face Pulls (Band)", sets: "2x20-25", rest: "60 sec", notes: "High reps, burn out" },
+                            { name: "Superset C1: Overhead Tricep Extension (DB/KB)", sets: "2x12-15", rest: "60 sec", notes: "To fatigue" },
+                            { name: "Superset C2: DB Hammer Curls", sets: "2x12-15", rest: "60 sec", notes: "To fatigue" }
+                        ]
+                    },
+                    "Lower B - Posterior/Unilateral (Thursday)": {
+                        mobility: [
+                            "90/90 Hip Stretch: 2x60 sec each side",
+                            "World's Greatest Stretch: 2x5 each side",
+                            "Glute Bridges (Activation): 2x15 w/ 2 sec hold",
+                            "Psoas March: 2x10 each leg"
+                        ],
+                        exercises: [
+                            { name: "DB or KB Romanian Deadlift", sets: "4x10-12", rest: "2 min", notes: "Tempo: 3110, hamstring stretch" },
+                            { name: "DB Walking Lunges (or Reverse Lunges)", sets: "4x10/leg", rest: "2 min", notes: "DBs at side, upright torso" },
+                            { name: "Single Leg RDL (DB)", sets: "3x10/leg", rest: "90 sec", notes: "Balance & symmetry focus" },
+                            { name: "Superset A1: DB Step-Ups", sets: "3x12/leg", rest: "60 sec", notes: "Controlled tempo, drive through heel" },
+                            { name: "Superset A2: Nordic Hamstring Curl (Eccentric focus)", sets: "3x6-8", rest: "60 sec", notes: "Slow eccentric, assisted concentric OK" },
+                            { name: "Superset B1: 45-Degree Back Extension or Reverse Hyper", sets: "2x15-20", rest: "45 sec", notes: "Hold KB/plate, squeeze glutes" },
+                            { name: "Superset B2: Dead Bugs or Pallof Press", sets: "2x12 each side", rest: "45 sec", notes: "Core stability, anti-rotation" }
+                        ]
+                    },
+                    "Upper B - Vertical Push/Pull (Friday)": {
+                        mobility: [
+                            "Band Pull-Aparts: 2x20",
+                            "Overhead Reach w/ Lat Stretch: 2x8 each side",
+                            "Thoracic Extension (Foam Roller): 2x60 sec",
+                            "Scapular Wall Slides: 2x12"
+                        ],
+                        exercises: [
+                            { name: "DB Overhead Press (Seated or Standing)", sets: "4x8-10", rest: "2-3 min", notes: "Strict form, control down" },
+                            { name: "Pull-Ups or Lat Pulldown", sets: "4x8-12", rest: "2 min", notes: "Full ROM, squeeze at bottom" },
+                            { name: "Superset A1: DB Arnold Press", sets: "3x10-12", rest: "90 sec", notes: "Tempo: 3010" },
+                            { name: "Superset A2: Chest Supported Reverse Fly", sets: "3x15", rest: "90 sec", notes: "Light, squeeze rear delts" },
+                            { name: "Superset B1: Cable or Band Rope Tricep Pushdown", sets: "2x15-20", rest: "60 sec", notes: "To fatigue, last set drop set" },
+                            { name: "Superset B2: Incline DB Curl", sets: "2x12-15", rest: "60 sec", notes: "Full stretch at bottom" },
+                            { name: "Superset C1: Barbell or DB Shrugs", sets: "2x20", rest: "45 sec", notes: "Hold at top for 2 sec" },
+                            { name: "Superset C2: DB Front Raise", sets: "2x15", rest: "45 sec", notes: "Burn out" }
+                        ]
+                    }
+                }
+            };
+            
+            // Save default program if this is first load
+            if (!programData) {
+                await saveProgram();
+            }
+        }
+
+        async function saveWorkouts() {
+            await storage.set('workouts', state.workouts);
+        }
+
+        async function saveHabits() {
+            await storage.set('habits', state.habits);
+        }
+
+        async function saveProgram() {
+            await storage.set('workout-program', state.workoutProgram);
+        }
+
+        // Render functions
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                ${renderHeader()}
+                ${renderNavigation()}
+                ${renderContent()}
+            `;
+        }
+
+        function renderHeader() {
+            return `
+                <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 shadow-lg">
+                    <h1 class="text-3xl font-bold">Summit Pro</h1>
+                    <p class="text-blue-100 mt-1">Track workouts & build habits</p>
+                </div>
+            `;
+        }
+
+        function renderNavigation() {
+            const tabs = [
+                { id: 'workout', label: 'Workout', icon: '💪' },
+                { id: 'progress', label: 'Progress', icon: '📊' },
+                { id: 'habits', label: 'Habits', icon: '✓' }
+            ];
+
+            return `
+                <div class="bg-white border-b sticky top-0 z-10 shadow-sm">
+                    <div class="flex">
+                        ${tabs.map(tab => `
+                            <button 
+                                onclick="switchView('${tab.id}')"
+                                class="flex-1 py-4 px-4 text-center font-medium transition-colors ${
+                                    state.currentView === tab.id 
+                                        ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' 
+                                        : 'text-gray-600 hover:bg-gray-50'
+                                }">
+                                <span class="text-xl">${tab.icon}</span>
+                                <div class="text-sm mt-1">${tab.label}</div>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderContent() {
+            switch(state.currentView) {
+                case 'workout':
+                    return renderWorkoutView();
+                case 'progress':
+                    return renderProgressView();
+                case 'habits':
+                    return renderHabitsView();
+                default:
+                    return '';
+            }
+        }
+
+        function renderWorkoutView() {
+            if (state.currentWorkout) {
+                return renderActiveWorkout();
+            }
+
+            return `
+                <div class="p-4">
+                    ${state.workoutProgram ? renderProgramInfo() : ''}
+                    
+                    <div class="bg-white rounded-lg shadow p-6 mb-4">
+                        <h2 class="text-xl font-bold mb-4">Start New Workout</h2>
+                        ${!state.workoutProgram ? `
+                            <button onclick="showProgramSetup()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3">
+                                Set Up Training Program
+                            </button>
+                        ` : ''}
+                        <button onclick="startWorkout()" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700">
+                            Start Workout
+                        </button>
+                    </div>
+
+                    ${renderRecentWorkouts()}
+                </div>
+            `;
+        }
+
+        function renderProgramInfo() {
+            if (!state.workoutProgram) return '';
+            
+            const { name, duration, split } = state.workoutProgram;
+            const currentWeek = getCurrentWeek();
+            
+            return `
+                <div class="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg shadow-lg p-6 mb-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="text-2xl font-bold">${name}</h3>
+                            <p class="text-purple-100 mt-1">${split.length}-day split • ${duration} weeks</p>
+                        </div>
+                        <button onclick="showProgramSetup()" class="text-white hover:bg-white/20 px-3 py-1 rounded">
+                            Edit
+                        </button>
+                    </div>
+                    <div class="bg-white/20 rounded-lg p-3">
+                        <div class="text-sm text-purple-100 mb-1">Current Progress</div>
+                        <div class="text-3xl font-bold">Week ${currentWeek} / ${duration}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getCurrentWeek() {
+            if (!state.workoutProgram || !state.workoutProgram.startDate) return 1;
+            
+            const start = new Date(state.workoutProgram.startDate);
+            const now = new Date();
+            const diffTime = Math.abs(now - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const week = Math.ceil(diffDays / 7);
+            
+            return Math.min(week, state.workoutProgram.duration);
+        }
+
+        function showProgramSetup() {
+            const existing = state.workoutProgram || {};
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4';
+            overlay.innerHTML = `
+                <div class="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+                    <div class="p-6">
+                        <h2 class="text-2xl font-bold mb-4">Training Program</h2>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Program Name</label>
+                            <input type="text" id="program-name" value="${existing.name || ''}" 
+                                placeholder="e.g., Upper/Lower Split"
+                                class="w-full border rounded-lg px-3 py-2">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Duration (weeks)</label>
+                            <input type="number" id="program-duration" value="${existing.duration || 6}" min="1" max="52"
+                                class="w-full border rounded-lg px-3 py-2">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Training Split</label>
+                            <div id="split-days" class="space-y-2">
+                                ${(existing.split || ['Day 1']).map((day, i) => `
+                                    <input type="text" data-day="${i}" value="${day}"
+                                        placeholder="e.g., Upper Body, Lower Body, Push, Pull"
+                                        class="w-full border rounded-lg px-3 py-2 split-day">
+                                `).join('')}
+                            </div>
+                            <button onclick="addSplitDay()" class="mt-2 text-blue-600 text-sm font-medium">
+                                + Add Day
+                            </button>
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button onclick="saveProgramSetup()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700">
+                                Save Program
+                            </button>
+                            <button onclick="closeOverlay()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+            overlay.onclick = (e) => {
+                if (e.target === overlay) closeOverlay();
+            };
+        }
+
+        function addSplitDay() {
+            const container = document.getElementById('split-days');
+            const dayNum = container.querySelectorAll('.split-day').length;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'w-full border rounded-lg px-3 py-2 split-day mb-2';
+            input.dataset.day = dayNum;
+            input.placeholder = 'e.g., Push, Pull, Legs';
+            container.appendChild(input);
+        }
+
+        async function saveProgramSetup() {
+            const name = document.getElementById('program-name').value;
+            const duration = parseInt(document.getElementById('program-duration').value);
+            const splitInputs = document.querySelectorAll('.split-day');
+            const split = Array.from(splitInputs).map(input => input.value).filter(v => v.trim());
+
+            if (!name || !duration || split.length === 0) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            state.workoutProgram = {
+                name,
+                duration,
+                split,
+                startDate: state.workoutProgram?.startDate || new Date().toISOString()
+            };
+
+            await saveProgram();
+            closeOverlay();
+            render();
+        }
+
+        function closeOverlay() {
+            const overlay = document.querySelector('.fixed.inset-0');
+            if (overlay) overlay.remove();
+        }
+
+        function startWorkout() {
+            const dayOptions = state.workoutProgram 
+                ? state.workoutProgram.split.map((day, i) => `<option value="${day}">${day}</option>`).join('')
+                : '';
+
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto';
+            overlay.innerHTML = `
+                <div class="bg-white rounded-lg max-w-2xl w-full my-8">
+                    <div class="p-6">
+                        <h2 class="text-2xl font-bold mb-4">New Workout</h2>
+                        
+                        ${state.workoutProgram ? `
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">Training Day</label>
+                                <select id="workout-day" onchange="showWorkoutTemplate()" class="w-full border rounded-lg px-3 py-2">
+                                    ${dayOptions}
+                                </select>
+                            </div>
+                            <div id="workout-template" class="mb-4">
+                                ${renderWorkoutTemplate(state.workoutProgram.split[0])}
+                            </div>
+                        ` : `
+                            <div class="mb-4">
+                                <label class="block text-sm font-medium mb-2">Workout Name</label>
+                                <input type="text" id="workout-day" placeholder="e.g., Upper Body, Legs"
+                                    class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                        `}
+
+                        <div class="flex gap-3">
+                            <button onclick="confirmStartWorkout()" class="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-green-700">
+                                Start Workout
+                            </button>
+                            <button onclick="closeOverlay()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
+        function showWorkoutTemplate() {
+            const day = document.getElementById('workout-day').value;
+            const template = renderWorkoutTemplate(day);
+            document.getElementById('workout-template').innerHTML = template;
+        }
+
+        function renderWorkoutTemplate(day) {
+            if (!state.workoutProgram?.programDetails?.[day]) {
+                return '';
+            }
+
+            const details = state.workoutProgram.programDetails[day];
+            
+            return `
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    <h3 class="font-bold text-blue-900 mb-3">📋 Today's Workout Plan</h3>
+                    
+                    ${details.mobility ? `
+                        <div class="mb-4">
+                            <h4 class="font-semibold text-sm text-blue-800 mb-2">🧘 Mobility Prep (5-10 min)</h4>
+                            <div class="space-y-1 text-sm">
+                                ${details.mobility.map(m => `<div class="text-gray-700">• ${m}</div>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div>
+                        <h4 class="font-semibold text-sm text-blue-800 mb-2">💪 Workout</h4>
+                        <div class="space-y-2 text-sm">
+                            ${details.exercises.map((ex, i) => `
+                                <div class="bg-white rounded p-2">
+                                    <div class="font-medium text-gray-900">${i + 1}. ${ex.name}</div>
+                                    <div class="text-gray-600">${ex.sets} • Rest: ${ex.rest}</div>
+                                    ${ex.notes ? `<div class="text-blue-600 text-xs italic">${ex.notes}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function confirmStartWorkout() {
+            const day = document.getElementById('workout-day').value;
+            if (!day) {
+                alert('Please select or enter a workout name');
+                return;
+            }
+
+            state.currentWorkout = {
+                day,
+                date: new Date().toISOString(),
+                exercises: [],
+                week: getCurrentWeek()
+            };
+
+            closeOverlay();
+            render();
+        }
+
+        function renderActiveWorkout() {
+            const { day, exercises } = state.currentWorkout;
+            
+            return `
+                <div class="p-4">
+                    <div class="bg-gradient-to-r from-green-500 to-blue-500 text-white rounded-lg shadow-lg p-6 mb-4">
+                        <h2 class="text-2xl font-bold">${day}</h2>
+                        <p class="text-green-100 mt-1">Week ${state.currentWorkout.week} • ${new Date().toLocaleDateString()}</p>
+                    </div>
+
+                    ${state.activeTimer ? renderRestTimer() : ''}
+
+                    <div class="space-y-4 mb-4">
+                        ${exercises.map((ex, i) => renderExercise(ex, i)).join('')}
+                    </div>
+
+                    <button onclick="addExercise()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3">
+                        + Add Exercise
+                    </button>
+
+                    <button onclick="finishWorkout()" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700">
+                        Finish Workout
+                    </button>
+
+                    <button onclick="cancelWorkout()" class="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 mt-2">
+                        Cancel
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderRestTimer() {
+            const { remaining, total } = state.activeTimer;
+            const progress = ((total - remaining) / total) * 283; // circumference
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+
+            return `
+                <div class="bg-white rounded-lg shadow-lg p-6 mb-4 rest-timer-active">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold">Rest Timer</h3>
+                        <button onclick="stopTimer()" class="text-red-600 hover:bg-red-50 px-3 py-1 rounded">
+                            Stop
+                        </button>
+                    </div>
+                    <div class="flex items-center justify-center">
+                        <svg width="120" height="120" class="transform -rotate-90">
+                            <circle cx="60" cy="60" r="45" stroke="#e5e7eb" stroke-width="8" fill="none"/>
+                            <circle cx="60" cy="60" r="45" stroke="#3b82f6" stroke-width="8" fill="none"
+                                stroke-dasharray="283" stroke-dashoffset="${283 - progress}"
+                                class="transition-all duration-1000"/>
+                        </svg>
+                        <div class="absolute text-3xl font-bold">
+                            ${minutes}:${seconds.toString().padStart(2, '0')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderExercise(exercise, index) {
+            return `
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <h3 class="text-lg font-bold">${exercise.name}</h3>
+                        <button onclick="removeExercise(${index})" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded text-sm">
+                            Remove
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-2 mb-3">
+                        ${exercise.sets.map((set, setIndex) => `
+                            <div class="flex items-center gap-2 bg-gray-50 p-2 rounded">
+                                <span class="text-sm font-medium w-12">Set ${setIndex + 1}</span>
+                                <input type="number" value="${set.weight || ''}" 
+                                    onchange="updateSet(${index}, ${setIndex}, 'weight', this.value)"
+                                    placeholder="lbs" class="w-20 border rounded px-2 py-1 text-sm">
+                                <span class="text-xs text-gray-500">lbs ×</span>
+                                <input type="number" value="${set.reps || ''}"
+                                    onchange="updateSet(${index}, ${setIndex}, 'reps', this.value)"
+                                    placeholder="reps" class="w-16 border rounded px-2 py-1 text-sm">
+                                <span class="text-xs text-gray-500">reps</span>
+                                <button onclick="startRestTimer(${index}, ${setIndex})" 
+                                    class="ml-auto bg-blue-100 text-blue-600 px-3 py-1 rounded text-sm font-medium hover:bg-blue-200">
+                                    Rest
+                                </button>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <button onclick="addSet(${index})" class="text-blue-600 text-sm font-medium">
+                        + Add Set
+                    </button>
+                </div>
+            `;
+        }
+
+        function addExercise() {
+            const name = prompt('Exercise name:');
+            if (!name) return;
+
+            state.currentWorkout.exercises.push({
+                name,
+                sets: [{ weight: '', reps: '' }]
+            });
+            render();
+        }
+
+        function removeExercise(index) {
+            if (confirm('Remove this exercise?')) {
+                state.currentWorkout.exercises.splice(index, 1);
+                render();
+            }
+        }
+
+        function addSet(exerciseIndex) {
+            state.currentWorkout.exercises[exerciseIndex].sets.push({ weight: '', reps: '' });
+            render();
+        }
+
+        function updateSet(exerciseIndex, setIndex, field, value) {
+            state.currentWorkout.exercises[exerciseIndex].sets[setIndex][field] = value;
+        }
+
+        function startRestTimer(exerciseIndex, setIndex) {
+            const seconds = prompt('Rest time (seconds):', '90');
+            if (!seconds) return;
+
+            const duration = parseInt(seconds);
+            state.activeTimer = {
+                remaining: duration,
+                total: duration,
+                interval: null
+            };
+
+            state.activeTimer.interval = setInterval(() => {
+                state.activeTimer.remaining--;
+                
+                if (state.activeTimer.remaining <= 0) {
+                    stopTimer();
+                    alert('Rest complete!');
+                }
+                render();
+            }, 1000);
+
+            render();
+        }
+
+        function stopTimer() {
+            if (state.activeTimer?.interval) {
+                clearInterval(state.activeTimer.interval);
+            }
+            state.activeTimer = null;
+            render();
+        }
+
+        async function finishWorkout() {
+            if (state.currentWorkout.exercises.length === 0) {
+                alert('Add at least one exercise before finishing');
+                return;
+            }
+
+            state.workouts.push(state.currentWorkout);
+            await saveWorkouts();
+            
+            state.currentWorkout = null;
+            stopTimer();
+            render();
+        }
+
+        function cancelWorkout() {
+            if (confirm('Cancel this workout? All progress will be lost.')) {
+                state.currentWorkout = null;
+                stopTimer();
+                render();
+            }
+        }
+
+        function renderRecentWorkouts() {
+            const recent = state.workouts.slice(-5).reverse();
+            
+            if (recent.length === 0) {
+                return `
+                    <div class="bg-white rounded-lg shadow p-6 text-center text-gray-500">
+                        <p>No workouts logged yet</p>
+                        <p class="text-sm mt-2">Start your first workout to begin tracking progress</p>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="bg-white rounded-lg shadow">
+                    <div class="p-4 border-b">
+                        <h3 class="font-bold">Recent Workouts</h3>
+                    </div>
+                    <div class="divide-y">
+                        ${recent.map(workout => `
+                            <div class="p-4">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <h4 class="font-bold">${workout.day}</h4>
+                                        <p class="text-sm text-gray-500">${new Date(workout.date).toLocaleDateString()} • Week ${workout.week}</p>
+                                    </div>
+                                    <span class="text-sm text-gray-500">${workout.exercises.length} exercises</span>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderProgressView() {
+            if (state.workouts.length === 0) {
+                return `
+                    <div class="p-4">
+                        <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                            <div class="text-6xl mb-4">📊</div>
+                            <p class="text-lg">No workout data yet</p>
+                            <p class="text-sm mt-2">Complete workouts to see your progress</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            const byExercise = {};
+            state.workouts.forEach(workout => {
+                workout.exercises.forEach(exercise => {
+                    if (!byExercise[exercise.name]) {
+                        byExercise[exercise.name] = [];
+                    }
+                    byExercise[exercise.name].push({
+                        date: workout.date,
+                        week: workout.week,
+                        sets: exercise.sets
+                    });
+                });
+            });
+
+            return `
+                <div class="p-4">
+                    <div class="bg-white rounded-lg shadow p-6 mb-4">
+                        <h2 class="text-xl font-bold mb-4">Workout Summary</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <div class="text-3xl font-bold text-blue-600">${state.workouts.length}</div>
+                                <div class="text-sm text-gray-600">Total Workouts</div>
+                            </div>
+                            <div class="bg-green-50 p-4 rounded-lg">
+                                <div class="text-3xl font-bold text-green-600">${Object.keys(byExercise).length}</div>
+                                <div class="text-sm text-gray-600">Exercises Tracked</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-lg shadow">
+                        <div class="p-4 border-b">
+                            <h3 class="font-bold">Exercise Progress</h3>
+                        </div>
+                        <div class="divide-y">
+                            ${Object.entries(byExercise).map(([name, sessions]) => {
+                                const latest = sessions[sessions.length - 1];
+                                const maxWeight = Math.max(...latest.sets.map(s => parseFloat(s.weight) || 0));
+                                const totalReps = latest.sets.reduce((sum, s) => sum + (parseFloat(s.reps) || 0), 0);
+                                
+                                return `
+                                    <div class="p-4">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h4 class="font-bold">${name}</h4>
+                                                <p class="text-sm text-gray-500">${sessions.length} sessions</p>
+                                            </div>
+                                            <div class="text-right">
+                                                <div class="font-bold text-blue-600">${maxWeight} lbs</div>
+                                                <div class="text-sm text-gray-500">${totalReps} reps</div>
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                            Last: Week ${latest.week} • ${new Date(latest.date).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHabitsView() {
+            const dailyHabits = state.habits.filter(h => h.frequency === 'Daily');
+            const weeklyHabits = state.habits.filter(h => h.frequency === 'Weekly');
+            
+            return `
+                <div class="p-4">
+                    <div class="bg-white rounded-lg shadow p-6 mb-4">
+                        <h2 class="text-xl font-bold mb-4">Habit Tracker</h2>
+                        <button onclick="addHabit()" class="w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700">
+                            + Add Custom Habit
+                        </button>
+                    </div>
+
+                    ${state.habits.length === 0 ? `
+                        <div class="bg-white rounded-lg shadow p-8 text-center text-gray-500">
+                            <div class="text-6xl mb-4">✓</div>
+                            <p class="text-lg">No habits yet</p>
+                            <p class="text-sm mt-2">Add habits to start tracking</p>
+                        </div>
+                    ` : `
+                        ${dailyHabits.length > 0 ? `
+                            <div class="mb-6">
+                                <h3 class="text-lg font-bold text-gray-700 mb-3 px-1">Daily Habits</h3>
+                                <div class="space-y-3">
+                                    ${dailyHabits.map((habit, i) => {
+                                        const originalIndex = state.habits.indexOf(habit);
+                                        return renderHabit(habit, originalIndex);
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${weeklyHabits.length > 0 ? `
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-700 mb-3 px-1">Weekly Goals</h3>
+                                <div class="space-y-3">
+                                    ${weeklyHabits.map((habit, i) => {
+                                        const originalIndex = state.habits.indexOf(habit);
+                                        return renderHabit(habit, originalIndex);
+                                    }).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                    `}
+                </div>
+            `;
+        }
+
+        function renderHabit(habit, index) {
+            const today = new Date().toDateString();
+            const isCheckedToday = habit.completions?.includes(today);
+            const thisWeek = getWeekDates();
+            const weekCompletions = thisWeek.filter(date => 
+                habit.completions?.includes(date)
+            ).length;
+            
+            const isWeekly = habit.frequency === 'Weekly';
+            const progress = isWeekly ? weekCompletions : (isCheckedToday ? 1 : 0);
+            const target = isWeekly ? habit.target : 1;
+            const isComplete = progress >= target;
+
+            return `
+                <div class="bg-white rounded-lg shadow p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold">${habit.name}</h3>
+                            <p class="text-sm ${isWeekly ? 'text-blue-600 font-medium' : 'text-gray-500'}">
+                                ${isWeekly ? `Weekly Goal: ${habit.target}x` : 'Daily'}
+                            </p>
+                        </div>
+                        <button onclick="removeHabit(${index})" class="text-red-600 hover:bg-red-50 px-2 py-1 rounded text-sm">
+                            Remove
+                        </button>
+                    </div>
+
+                    ${isWeekly ? `
+                        <div class="bg-gray-50 rounded-lg p-3 mb-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-600">This Week</span>
+                                <span class="text-lg font-bold ${isComplete ? 'text-green-600' : 'text-blue-600'}">
+                                    ${weekCompletions}/${habit.target}
+                                </span>
+                            </div>
+                            <div class="flex-1 bg-gray-200 rounded-full h-3">
+                                <div class="h-3 rounded-full transition-all ${isComplete ? 'bg-green-500' : 'bg-blue-500'}" 
+                                    style="width: ${Math.min((weekCompletions / habit.target) * 100, 100)}%"></div>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    <div class="flex items-center gap-3">
+                        <input type="checkbox" id="habit-${index}" 
+                            ${isCheckedToday ? 'checked' : ''}
+                            onchange="toggleHabit(${index})"
+                            class="hidden habit-checkbox">
+                        <label for="habit-${index}" 
+                            class="flex-1 text-center py-3 px-4 border-2 rounded-lg font-medium cursor-pointer transition-colors ${
+                                isCheckedToday ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 hover:border-blue-400'
+                            }">
+                            ${isCheckedToday ? '✓ Done Today' : 'Mark Complete'}
+                        </label>
+                    </div>
+
+                    <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+                        <span>${habit.completions?.length || 0} total completions</span>
+                        ${isWeekly && isComplete ? '<span class="text-green-600 font-medium">✓ Weekly goal met!</span>' : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getWeekDates() {
+            const now = new Date();
+            const week = [];
+            const day = now.getDay();
+            const diff = now.getDate() - day;
+            
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(now);
+                date.setDate(diff + i);
+                week.push(date.toDateString());
+            }
+            return week;
+        }
+
+        function addHabit() {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4';
+            overlay.innerHTML = `
+                <div class="bg-white rounded-lg max-w-md w-full">
+                    <div class="p-6">
+                        <h2 class="text-2xl font-bold mb-4">New Habit</h2>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Habit Name</label>
+                            <input type="text" id="habit-name" placeholder="e.g., Drink 8 glasses of water"
+                                class="w-full border rounded-lg px-3 py-2">
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Frequency</label>
+                            <select id="habit-frequency" onchange="toggleTarget()" class="w-full border rounded-lg px-3 py-2">
+                                <option value="Daily">Daily</option>
+                                <option value="Weekly">Weekly</option>
+                            </select>
+                        </div>
+
+                        <div id="target-container" class="mb-4 hidden">
+                            <label class="block text-sm font-medium mb-2">Weekly Target</label>
+                            <input type="number" id="habit-target" value="5" min="1" max="7"
+                                class="w-full border rounded-lg px-3 py-2">
+                        </div>
+
+                        <div class="flex gap-3">
+                            <button onclick="saveHabit()" class="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg font-medium hover:bg-blue-700">
+                                Add Habit
+                            </button>
+                            <button onclick="closeOverlay()" class="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
+
+        function toggleTarget() {
+            const frequency = document.getElementById('habit-frequency').value;
+            const targetContainer = document.getElementById('target-container');
+            targetContainer.classList.toggle('hidden', frequency === 'Daily');
+        }
+
+        async function saveHabit() {
+            const name = document.getElementById('habit-name').value;
+            const frequency = document.getElementById('habit-frequency').value;
+            const target = frequency === 'Weekly' ? parseInt(document.getElementById('habit-target').value) : 1;
+
+            if (!name) {
+                alert('Please enter a habit name');
+                return;
+            }
+
+            state.habits.push({
+                name,
+                frequency,
+                target,
+                completions: []
+            });
+
+            await saveHabits();
+            closeOverlay();
+            render();
+        }
+
+        async function removeHabit(index) {
+            if (confirm('Remove this habit?')) {
+                state.habits.splice(index, 1);
+                await saveHabits();
+                render();
+            }
+        }
+
+        async function toggleHabit(index) {
+            const today = new Date().toDateString();
+            const habit = state.habits[index];
+            
+            if (!habit.completions) {
+                habit.completions = [];
+            }
+
+            const idx = habit.completions.indexOf(today);
+            if (idx > -1) {
+                habit.completions.splice(idx, 1);
+            } else {
+                habit.completions.push(today);
+            }
+
+            await saveHabits();
+            render();
+        }
+
+        function switchView(view) {
+            state.currentView = view;
+            render();
+        }
+
+        // Initialize app
+        init();
+    </script>
+</body>
+</html>
