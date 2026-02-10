@@ -38,24 +38,32 @@
     <div id="app" class="max-w-4xl mx-auto pb-20"></div>
 
     <script>
-        // Storage wrapper with error handling
+        // Storage wrapper with localStorage fallback for iOS home screen compatibility
         const storage = {
             get: async (key) => {
                 try {
+                    // Try window.storage first
                     const result = await window.storage.get(key);
                     return result ? JSON.parse(result.value) : null;
                 } catch (error) {
-                    console.error('Storage get error:', error);
-                    return null;
+                    // Fallback to localStorage for iOS home screen apps
+                    console.log('Using localStorage fallback for:', key);
+                    const value = localStorage.getItem(key);
+                    return value ? JSON.parse(value) : null;
                 }
             },
             set: async (key, value) => {
                 try {
+                    // Try window.storage first
                     await window.storage.set(key, JSON.stringify(value));
+                    // Also save to localStorage as backup
+                    localStorage.setItem(key, JSON.stringify(value));
                     return true;
                 } catch (error) {
-                    console.error('Storage set error:', error);
-                    return false;
+                    // Fallback to localStorage only
+                    console.log('Using localStorage fallback for:', key);
+                    localStorage.setItem(key, JSON.stringify(value));
+                    return true;
                 }
             },
             list: async (prefix) => {
@@ -63,7 +71,7 @@
                     const result = await window.storage.list(prefix);
                     return result ? result.keys : [];
                 } catch (error) {
-                    console.error('Storage list error:', error);
+                    console.log('Storage list not available, using localStorage');
                     return [];
                 }
             }
