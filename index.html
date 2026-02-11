@@ -285,25 +285,281 @@
                 return renderActiveWorkout();
             }
 
+            const currentWeek = getCurrentWeek();
+            const thisWeekDates = getWeekDates();
+            
+            // Check which workouts have been completed this week
+            const completedThisWeek = {};
+            state.workouts.forEach(workout => {
+                const workoutDate = new Date(workout.date).toDateString();
+                if (thisWeekDates.includes(workoutDate)) {
+                    completedThisWeek[workout.day] = true;
+                }
+            });
+
             return `
                 <div class="p-4">
-                    ${state.workoutProgram ? renderProgramInfo() : ''}
-                    
-                    <div class="bg-white rounded-lg shadow p-6 mb-4">
-                        <h2 class="text-xl font-bold mb-4">Start New Workout</h2>
-                        ${!state.workoutProgram ? `
+                    ${state.workoutProgram ? `
+                        <!-- Program Header -->
+                        <div class="bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg shadow-lg p-6 mb-6">
+                            <h2 class="text-2xl font-bold mb-2">${state.workoutProgram.name}</h2>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-purple-100">Week ${currentWeek} of ${state.workoutProgram.duration}</p>
+                                    <p class="text-sm text-purple-200 mt-1">${state.workoutProgram.split.length}-day split</p>
+                                </div>
+                                <button onclick="showProgramSetup()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium">
+                                    Edit Program
+                                </button>
+                            </div>
+                            
+                            <!-- Week Progress Bar -->
+                            <div class="mt-4">
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span>Program Progress</span>
+                                    <span>${Math.round((currentWeek / state.workoutProgram.duration) * 100)}%</span>
+                                </div>
+                                <div class="bg-white/20 rounded-full h-2">
+                                    <div class="bg-white h-2 rounded-full transition-all" 
+                                        style="width: ${(currentWeek / state.workoutProgram.duration) * 100}%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- This Week's Workouts -->
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-3">This Week's Workouts</h3>
+                            <div class="grid grid-cols-1 gap-3">
+                                ${state.workoutProgram.split.map((day, index) => {
+                                    const isCompleted = completedThisWeek[day];
+                                    const dayLabels = ['Monday', 'Tuesday', 'Thursday', 'Friday'];
+                                    
+                                    return `
+                                        <div class="bg-white rounded-lg shadow p-4 border-2 ${isCompleted ? 'border-green-500 bg-green-50' : 'border-gray-200'}">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center gap-2">
+                                                        <h4 class="font-bold text-gray-900">${day.split(' - ')[0]}</h4>
+                                                        ${isCompleted ? '<span class="text-green-600">✓</span>' : ''}
+                                                    </div>
+                                                    <p class="text-sm text-gray-600">${dayLabels[index] || 'Flexible'}</p>
+                                                    ${day.includes('(Big Box)') ? '<p class="text-xs text-blue-600 mt-1">📍 Big Box Gym</p>' : ''}
+                                                </div>
+                                                <button 
+                                                    onclick="startSpecificWorkout('${day}')"
+                                                    class="px-4 py-2 rounded-lg font-medium ${
+                                                        isCompleted 
+                                                            ? 'bg-green-100 text-green-700 hover:bg-green-200' 
+                                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                                    }">
+                                                    ${isCompleted ? 'Redo' : 'Start'}
+                                                </button>
+                                            </div>
+                                            ${state.workoutProgram.programDetails?.[day] ? `
+                                                <div class="text-xs text-gray-500 mt-2">
+                                                    ${state.workoutProgram.programDetails[day].exercises.length} exercises
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <button onclick="showWorkoutHistory()" class="bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200">
+                                📅 History
+                            </button>
+                            <button onclick="startCustomWorkout()" class="bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200">
+                                ➕ Custom Workout
+                            </button>
+                        </div>
+                    ` : `
+                        <div class="bg-white rounded-lg shadow p-6 mb-4">
+                            <h2 class="text-xl font-bold mb-4">Get Started</h2>
                             <button onclick="showProgramSetup()" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 mb-3">
                                 Set Up Training Program
                             </button>
-                        ` : ''}
-                        <button onclick="startWorkout()" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700">
-                            Start Workout
-                        </button>
-                    </div>
+                            <button onclick="startCustomWorkout()" class="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700">
+                                Start Custom Workout
+                            </button>
+                        </div>
+                    `}
 
                     ${renderRecentWorkouts()}
                 </div>
             `;
+        }
+
+        function startSpecificWorkout(day) {
+            const programTemplate = state.workoutProgram?.programDetails?.[day];
+            const exercises = [];
+
+            if (programTemplate?.exercises) {
+                programTemplate.exercises.forEach(templateEx => {
+                    const setsMatch = templateEx.sets.match(/^(\d+)/);
+                    const numSets = setsMatch ? parseInt(setsMatch[1]) : 3;
+                    
+                    // Get last week's performance for this exercise
+                    const lastPerformance = getLastPerformanceData(templateEx.name, day);
+                    
+                    // Create sets with last week's data if available
+                    const sets = [];
+                    for (let i = 0; i < numSets; i++) {
+                        if (lastPerformance && lastPerformance[i]) {
+                            // Use last week's data
+                            sets.push({
+                                weight: lastPerformance[i].weight || '',
+                                reps: lastPerformance[i].reps || ''
+                            });
+                        } else {
+                            // Empty set
+                            sets.push({ weight: '', reps: '' });
+                        }
+                    }
+                    
+                    exercises.push({
+                        name: templateEx.name,
+                        sets: sets,
+                        templateNotes: templateEx.notes || ''
+                    });
+                });
+            }
+
+            state.currentWorkout = {
+                day,
+                date: new Date().toISOString(),
+                exercises: exercises,
+                week: getCurrentWeek()
+            };
+
+            render();
+        }
+
+        function getLastPerformanceData(exerciseName, workoutDay) {
+            // Find the most recent workout with this exercise
+            const pastWorkouts = state.workouts
+                .filter(w => w.day === workoutDay)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            for (let workout of pastWorkouts) {
+                const exercise = workout.exercises.find(ex => ex.name === exerciseName);
+                if (exercise && exercise.sets && exercise.sets.length > 0) {
+                    // Return the sets data
+                    return exercise.sets.filter(s => s.weight || s.reps);
+                }
+            }
+            return null;
+        }
+
+        function startCustomWorkout() {
+            const name = prompt('Workout name:');
+            if (!name) return;
+
+            state.currentWorkout = {
+                day: name,
+                date: new Date().toISOString(),
+                exercises: [],
+                week: getCurrentWeek()
+            };
+
+            render();
+        }
+
+        function showWorkoutHistory() {
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto';
+            
+            // Group workouts by type
+            const workoutsByType = {};
+            state.workouts.forEach(workout => {
+                if (!workoutsByType[workout.day]) {
+                    workoutsByType[workout.day] = [];
+                }
+                workoutsByType[workout.day].push(workout);
+            });
+            
+            // Sort each group by date (most recent first)
+            Object.keys(workoutsByType).forEach(day => {
+                workoutsByType[day].sort((a, b) => new Date(b.date) - new Date(a.date));
+            });
+            
+            overlay.innerHTML = `
+                <div class="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto my-8">
+                    <div class="sticky top-0 bg-white border-b p-6 z-10">
+                        <div class="flex justify-between items-center">
+                            <h2 class="text-2xl font-bold">Workout History</h2>
+                            <button onclick="closeOverlay()" class="text-gray-500 hover:text-gray-700">
+                                <span class="text-2xl">×</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="p-6">
+                        ${Object.entries(workoutsByType).length === 0 ? `
+                            <div class="text-center text-gray-500 py-8">
+                                <p class="text-lg">No workouts logged yet</p>
+                                <p class="text-sm mt-2">Complete your first workout to see it here!</p>
+                            </div>
+                        ` : `
+                            ${Object.entries(workoutsByType).map(([day, workouts]) => `
+                                <div class="mb-6">
+                                    <h3 class="text-lg font-bold mb-3 flex items-center gap-2">
+                                        ${day}
+                                        <span class="text-sm font-normal text-gray-500">(${workouts.length} sessions)</span>
+                                    </h3>
+                                    <div class="space-y-3">
+                                        ${workouts.slice(0, 10).map(workout => `
+                                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                                <div class="flex justify-between items-start mb-3">
+                                                    <div>
+                                                        <div class="font-semibold">${new Date(workout.date).toLocaleDateString()}</div>
+                                                        <div class="text-sm text-gray-600">Week ${workout.week} • ${workout.exercises.length} exercises</div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div class="space-y-2">
+                                                    ${workout.exercises.map(ex => {
+                                                        const totalVolume = ex.sets.reduce((sum, s) => 
+                                                            sum + ((parseFloat(s.weight) || 0) * (parseFloat(s.reps) || 0)), 0
+                                                        );
+                                                        const maxWeight = Math.max(...ex.sets.map(s => parseFloat(s.weight) || 0));
+                                                        
+                                                        return `
+                                                            <div class="text-sm">
+                                                                <div class="font-medium text-gray-900">${ex.name}</div>
+                                                                <div class="text-xs text-gray-600">
+                                                                    ${ex.sets.filter(s => s.weight && s.reps).map(s => 
+                                                                        `${s.weight} lbs × ${s.reps}`
+                                                                    ).join(', ')}
+                                                                </div>
+                                                                ${ex.notes ? `
+                                                                    <div class="text-xs text-purple-600 italic mt-1">📝 ${ex.notes}</div>
+                                                                ` : ''}
+                                                            </div>
+                                                        `;
+                                                    }).join('')}
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                                        ${workouts.length > 10 ? `
+                                            <div class="text-center text-sm text-gray-500">
+                                                Showing 10 most recent sessions
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        `}
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(overlay);
+            overlay.onclick = (e) => {
+                if (e.target === overlay) closeOverlay();
+            };
         }
 
         function renderProgramInfo() {
@@ -336,11 +592,24 @@
             
             const start = new Date(state.workoutProgram.startDate);
             const now = new Date();
-            const diffTime = Math.abs(now - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            const week = Math.ceil(diffDays / 7);
             
-            return Math.min(week, state.workoutProgram.duration);
+            // Get Monday of the start week
+            const startMonday = new Date(start);
+            startMonday.setDate(start.getDate() - start.getDay() + 1); // Move to Monday
+            startMonday.setHours(0, 0, 0, 0);
+            
+            // Get Monday of current week
+            const currentMonday = new Date(now);
+            currentMonday.setDate(now.getDate() - now.getDay() + 1);
+            currentMonday.setHours(0, 0, 0, 0);
+            
+            const diffTime = currentMonday - startMonday;
+            const diffWeeks = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 7));
+            
+            // Calculate week within 6-week cycle
+            const weekInCycle = (diffWeeks % state.workoutProgram.duration) + 1;
+            
+            return weekInCycle;
         }
 
         function showProgramSetup() {
@@ -622,6 +891,9 @@
             // Find last week's notes for this exercise
             const lastWeekNotes = findLastWeekNotes(exercise.name, state.currentWorkout.day);
             
+            // Find last week's performance for this exercise
+            const lastWeekPerformance = findLastWeekPerformance(exercise.name, state.currentWorkout.day);
+            
             return `
                 <div class="bg-white rounded-lg shadow p-4">
                     <div class="flex justify-between items-start mb-2">
@@ -637,14 +909,21 @@
                     </div>
                     
                     ${exercise.templateNotes ? `
-                        <div class="text-xs text-blue-600 italic mb-3 bg-blue-50 p-2 rounded">
+                        <div class="text-xs text-blue-600 italic mb-2 bg-blue-50 p-2 rounded">
                             💡 ${exercise.templateNotes}
+                        </div>
+                    ` : ''}
+
+                    ${lastWeekPerformance ? `
+                        <div class="text-xs bg-gray-100 p-2 rounded mb-2">
+                            <span class="font-medium text-gray-700">Last week:</span>
+                            <span class="text-gray-600">${lastWeekPerformance}</span>
                         </div>
                     ` : ''}
 
                     ${lastWeekNotes ? `
                         <div class="text-xs text-purple-600 bg-purple-50 p-2 rounded mb-3">
-                            📝 Last week: ${lastWeekNotes}
+                            📝 ${lastWeekNotes}
                         </div>
                     ` : ''}
                     
@@ -683,6 +962,29 @@
                     </div>
                 </div>
             `;
+        }
+
+        function findLastWeekPerformance(exerciseName, workoutDay) {
+            // Find the most recent workout with this exercise (excluding current session)
+            const pastWorkouts = state.workouts
+                .filter(w => w.day === workoutDay)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            for (let workout of pastWorkouts) {
+                const exercise = workout.exercises.find(ex => ex.name === exerciseName);
+                if (exercise && exercise.sets && exercise.sets.length > 0) {
+                    // Format: "135 lbs × 10, 10, 8, 8"
+                    const setsDisplay = exercise.sets
+                        .filter(s => s.weight && s.reps)
+                        .map(s => `${s.weight} lbs × ${s.reps}`)
+                        .join(', ');
+                    
+                    if (setsDisplay) {
+                        return setsDisplay;
+                    }
+                }
+            }
+            return null;
         }
 
         function findLastWeekNotes(exerciseName, workoutDay) {
@@ -754,13 +1056,55 @@
         }
 
         function startRestTimer(exerciseIndex, setIndex) {
-            const seconds = prompt('Rest time (seconds):', '90');
-            if (!seconds) return;
+            // Show preset timer options
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4';
+            overlay.innerHTML = `
+                <div class="bg-white rounded-lg max-w-md w-full p-6">
+                    <h3 class="text-xl font-bold mb-4">Rest Timer</h3>
+                    
+                    <div class="grid grid-cols-2 gap-3 mb-4">
+                        <button onclick="startTimerWithDuration(60); closeOverlay();" 
+                            class="bg-blue-500 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-600">
+                            60s
+                        </button>
+                        <button onclick="startTimerWithDuration(90); closeOverlay();" 
+                            class="bg-blue-500 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-600">
+                            90s
+                        </button>
+                        <button onclick="startTimerWithDuration(120); closeOverlay();" 
+                            class="bg-blue-500 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-600">
+                            2m
+                        </button>
+                        <button onclick="startTimerWithDuration(180); closeOverlay();" 
+                            class="bg-blue-500 text-white py-4 rounded-lg text-lg font-bold hover:bg-blue-600">
+                            3m
+                        </button>
+                    </div>
+                    
+                    <div class="border-t pt-4">
+                        <label class="block text-sm font-medium mb-2">Custom (seconds):</label>
+                        <input type="number" id="custom-timer" placeholder="e.g., 45" 
+                            class="w-full border rounded-lg px-3 py-2 mb-3">
+                        <button onclick="startCustomTimer(); closeOverlay();" 
+                            class="w-full bg-gray-600 text-white py-2 rounded-lg font-medium hover:bg-gray-700">
+                            Start Custom Timer
+                        </button>
+                    </div>
+                    
+                    <button onclick="closeOverlay()" 
+                        class="w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 mt-3">
+                        Cancel
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(overlay);
+        }
 
-            const duration = parseInt(seconds);
+        function startTimerWithDuration(seconds) {
             state.activeTimer = {
-                remaining: duration,
-                total: duration,
+                remaining: seconds,
+                total: seconds,
                 interval: null
             };
 
@@ -769,12 +1113,23 @@
                 
                 if (state.activeTimer.remaining <= 0) {
                     stopTimer();
+                    // Play a sound or vibration would go here
                     alert('Rest complete!');
                 }
                 render();
             }, 1000);
 
             render();
+        }
+
+        function startCustomTimer() {
+            const input = document.getElementById('custom-timer');
+            const seconds = parseInt(input?.value);
+            if (!seconds || seconds <= 0) {
+                alert('Please enter a valid number of seconds');
+                return;
+            }
+            startTimerWithDuration(seconds);
         }
 
         function stopTimer() {
@@ -846,6 +1201,12 @@
             const thisWeekDates = getWeekDates();
             const thisWeekWorkouts = state.workouts.filter(w => thisWeekDates.includes(new Date(w.date).toDateString())).length;
             
+            // Calculate workout streak (consecutive weeks with 4+ workouts)
+            const weekStreak = calculateWeekStreak();
+            
+            // Calculate PRs
+            const prs = calculatePRs();
+            
             // Calculate habit completion stats
             const dailyHabits = state.habits.filter(h => h.frequency === 'Daily');
             const weeklyHabits = state.habits.filter(h => h.frequency === 'Weekly');
@@ -902,14 +1263,37 @@
                             <div class="text-sm text-green-100">Daily Habits Today</div>
                         </div>
                         <div class="bg-gradient-to-br from-purple-500 to-purple-600 text-white rounded-lg p-4 shadow">
-                            <div class="text-3xl font-bold">${totalWorkouts}</div>
-                            <div class="text-sm text-purple-100">Total Workouts</div>
+                            <div class="text-3xl font-bold">${weekStreak}</div>
+                            <div class="text-sm text-purple-100">Week Streak 🔥</div>
                         </div>
                         <div class="bg-gradient-to-br from-orange-500 to-orange-600 text-white rounded-lg p-4 shadow">
                             <div class="text-3xl font-bold">${weeklyGoalsMet}/${weeklyHabits.length}</div>
                             <div class="text-sm text-orange-100">Weekly Goals Met</div>
                         </div>
                     </div>
+
+                    <!-- Personal Records -->
+                    ${prs.length > 0 ? `
+                        <div class="bg-gradient-to-br from-yellow-400 to-yellow-500 text-gray-900 rounded-lg shadow p-6 mb-4">
+                            <h3 class="font-bold text-lg mb-3 flex items-center gap-2">
+                                🏆 Personal Records
+                            </h3>
+                            <div class="space-y-2 max-h-48 overflow-y-auto">
+                                ${prs.slice(0, 5).map(pr => `
+                                    <div class="bg-white/50 rounded p-2 flex justify-between items-center">
+                                        <div>
+                                            <div class="font-semibold text-sm">${pr.exercise}</div>
+                                            <div class="text-xs text-gray-700">${new Date(pr.date).toLocaleDateString()}</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold text-lg">${pr.weight} lbs</div>
+                                            <div class="text-xs">${pr.reps} reps</div>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
 
                     <!-- Habit Trend -->
                     <div class="bg-white rounded-lg shadow p-6 mb-4">
@@ -938,6 +1322,87 @@
                     ${renderExerciseProgress()}
                 </div>
             `;
+        }
+
+        function calculateWeekStreak() {
+            if (state.workouts.length === 0) return 0;
+            
+            let streak = 0;
+            let currentDate = new Date();
+            
+            // Start from last Monday
+            currentDate.setDate(currentDate.getDate() - currentDate.getDay() + 1);
+            currentDate.setHours(0, 0, 0, 0);
+            
+            while (true) {
+                const weekStart = new Date(currentDate);
+                const weekEnd = new Date(currentDate);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                weekEnd.setHours(23, 59, 59, 999);
+                
+                // Count workouts in this week
+                const workoutsThisWeek = state.workouts.filter(w => {
+                    const workoutDate = new Date(w.date);
+                    return workoutDate >= weekStart && workoutDate <= weekEnd;
+                }).length;
+                
+                // Need at least 4 workouts to continue streak
+                if (workoutsThisWeek >= 4) {
+                    streak++;
+                    currentDate.setDate(currentDate.getDate() - 7); // Go back one week
+                } else {
+                    break;
+                }
+                
+                // Safety: don't go back more than 52 weeks
+                if (streak > 52) break;
+            }
+            
+            return streak;
+        }
+
+        function calculatePRs() {
+            const prs = [];
+            const exerciseMaxes = {};
+            
+            // Sort workouts by date (oldest first)
+            const sortedWorkouts = [...state.workouts].sort((a, b) => 
+                new Date(a.date) - new Date(b.date)
+            );
+            
+            sortedWorkouts.forEach(workout => {
+                workout.exercises.forEach(exercise => {
+                    exercise.sets.forEach(set => {
+                        const weight = parseFloat(set.weight);
+                        const reps = parseFloat(set.reps);
+                        
+                        if (weight && reps) {
+                            if (!exerciseMaxes[exercise.name]) {
+                                // First time seeing this exercise
+                                exerciseMaxes[exercise.name] = { weight, reps, date: workout.date };
+                                prs.push({
+                                    exercise: exercise.name,
+                                    weight,
+                                    reps,
+                                    date: workout.date
+                                });
+                            } else if (weight > exerciseMaxes[exercise.name].weight) {
+                                // New PR!
+                                exerciseMaxes[exercise.name] = { weight, reps, date: workout.date };
+                                prs.push({
+                                    exercise: exercise.name,
+                                    weight,
+                                    reps,
+                                    date: workout.date
+                                });
+                            }
+                        }
+                    });
+                });
+            });
+            
+            // Return most recent PRs first
+            return prs.reverse();
         }
 
         function renderWeeklyHabitGrid() {
