@@ -13,10 +13,6 @@
             background: #0a0a0a;
             color: #e8e8e8;
         }
-        .accent { color: #c8f542; }
-        .bg-card { background: #161616; }
-        .bg-dark { background: #0a0a0a; }
-        .border-subtle { border-color: #242424; }
         input, textarea, select {
             background: #1e1e1e !important;
             color: #e8e8e8 !important;
@@ -27,296 +23,199 @@
         input[type="number"]::-webkit-outer-spin-button { opacity: 1; height: 36px; }
         .timer-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
-        .checkbox-done { background: #c8f542 !important; border-color: #c8f542 !important; }
-        .set-complete { background: #1a2e00 !important; border-color: #c8f542 !important; }
-        .day-card { transition: all 0.15s; }
         .day-card:active { transform: scale(0.98); }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-track { background: #111; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
-        .overlay-bg { background: rgba(0,0,0,0.85); }
-        .block-act { border-left: 3px solid #c8f542; }
-        .block-cmp { border-left: 3px solid #e8e8e8; }
-        .block-ss  { border-left: 3px solid #42c8f5; }
-        .block-fin { border-left: 3px solid #f57c42; }
+        .overlay-bg { background: rgba(0,0,0,0.88); }
     </style>
 </head>
 <body>
-    <div id="app" class="max-w-2xl mx-auto pb-24 min-h-screen"></div>
-
+<div id="app" class="max-w-2xl mx-auto pb-24 min-h-screen"></div>
 <script>
-// ── STORAGE ──────────────────────────────────────────────────────────────────
+
+// ── STORAGE ───────────────────────────────────────────────────────────────────
 const storage = {
-    get: async (key) => {
-        try { const r = await window.storage.get(key); return r ? JSON.parse(r.value) : null; }
-        catch { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
+    get: async (k) => {
+        try { const r = await window.storage.get(k); return r ? JSON.parse(r.value) : null; }
+        catch { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; }
     },
-    set: async (key, value) => {
-        try { await window.storage.set(key, JSON.stringify(value)); } catch {}
-        localStorage.setItem(key, JSON.stringify(value));
-    },
-    list: async (prefix) => {
-        try { const r = await window.storage.list(prefix); return r ? r.keys : []; }
-        catch { return []; }
+    set: async (k, v) => {
+        try { await window.storage.set(k, JSON.stringify(v)); } catch {}
+        localStorage.setItem(k, JSON.stringify(v));
     }
 };
 
-// ── PROGRAM DATA ──────────────────────────────────────────────────────────────
+// ── PROGRAM ───────────────────────────────────────────────────────────────────
+// isCheckbox = true  → tap-to-check sets (bodyweight / timed / mace / carries)
+// isCheckbox = false → weight + reps inputs (everything else incl. bands)
+
 const DEFAULT_PROGRAM = {
     name: "Summit Pro",
     duration: 6,
     startDate: new Date().toISOString(),
-    split: [
-        "Upper Body",
-        "Lower Body",
-        "Full Body + Functional",
-        "Mobility + Flow"
-    ],
+    split: ["Upper Body","Lower Body","Full Body + Functional","Mobility + Flow"],
     programDetails: {
         "Upper Body": {
             dayLabel: "Monday",
             warmup: [
-                { name: "Band Pull-Aparts", detail: "2 × 15" },
-                { name: "Thoracic Rotation Half-Kneeling", detail: "2 × 8/side" },
-                { name: "Shoulder CARs", detail: "1 × 10" }
+                { name:"Band Pull-Aparts", detail:"2 × 15" },
+                { name:"Thoracic Rotation Half-Kneeling", detail:"2 × 8/side" },
+                { name:"Shoulder CARs", detail:"1 × 10" }
             ],
             blocks: [
-                {
-                    label: "ACTIVATION SUPERSET", type: "activation",
-                    exercises: [
-                        { name: "Incline DB Fly or Band Chest Fly (light)", sets: 2, reps: "12", rest: 0, isCheckbox: true, notes: "Activate the chest. Feel it, don't fatigue it." },
-                        { name: "Scapular Pull-Up or Band Pull-Apart", sets: 2, reps: "12", rest: 45, isCheckbox: true, notes: "Prime lats and rear delts. 45s rest after ACT2 then into compounds." }
-                    ]
-                },
-                {
-                    label: "COMPOUND 1 — Full Rest", type: "compound",
-                    exercises: [
-                        { name: "Weighted Dips (vest)", sets: 4, reps: "8–10", rest: 110, isCheckbox: false, notes: "Lean slightly forward for chest emphasis. Progress vest weekly." }
-                    ]
-                },
-                {
-                    label: "COMPOUND 2 — Full Rest", type: "compound",
-                    exercises: [
-                        { name: "Pull-Ups (weighted vest or BW)", sets: 4, reps: "6–10", rest: 110, isCheckbox: false, notes: "No kipping. Dead hang at bottom, chin over bar at top." }
-                    ]
-                },
-                {
-                    label: "SUPERSET A — Shoulder Press & Back", type: "superset",
-                    exercises: [
-                        { name: "DB Shoulder Press (seated or standing)", sets: 3, reps: "10–12", rest: 0, isCheckbox: false, notes: "Dedicated overhead pressing. Control the descent." },
-                        { name: "Single-Arm DB Row (bench supported)", sets: 3, reps: "12/side", rest: 60, isCheckbox: false, notes: "No rest between A1/A2. 60s after A2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET B — Chest & Rear Delt", type: "superset",
-                    exercises: [
-                        { name: "Incline DB Press or Incline Barbell Press", sets: 3, reps: "10–12", rest: 0, isCheckbox: false, notes: "Control the descent. Both are incline." },
-                        { name: "Chest-Supported Rear Delt Fly (DB or band)", sets: 3, reps: "15", rest: 60, isCheckbox: false, notes: "No rest between B1/B2. 60s after B2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET C — Biceps & Chest Fly", type: "superset",
-                    exercises: [
-                        { name: "Incline DB Curl (supinated)", sets: 3, reps: "10–12", rest: 0, isCheckbox: false, notes: "Stretch-focused movement." },
-                        { name: "Band Chest Fly (bilateral, mid-height anchor)", sets: 3, reps: "12–15", rest: 60, isCheckbox: false, notes: "Feel the stretch at the bottom. 60s rest after C2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET D — Triceps & Face Pulls", type: "superset",
-                    exercises: [
-                        { name: "Band Overhead Tricep Extension (anchor low)", sets: 3, reps: "12–15", rest: 0, isCheckbox: false, notes: "" },
-                        { name: "Band Face Pulls (mid-height anchor)", sets: 3, reps: "15", rest: 45, isCheckbox: false, notes: "Elbows high. External rotation at end range. 45s after D2." }
-                    ]
-                },
-                {
-                    label: "FINISHER", type: "finisher",
-                    exercises: [
-                        { name: "Dead Hang", sets: 3, reps: "20–30s", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Lizard Walk Push-Ups or Archer Push-Ups", sets: 2, reps: "6–8/side", rest: 0, isCheckbox: true, notes: "Bodyweight. Quality over reps." }
-                    ]
-                }
+                { label:"ACTIVATION SUPERSET", type:"activation", exercises:[
+                    { name:"Incline DB Fly or Band Chest Fly (light)", sets:2, reps:"12", rest:0,  isCheckbox:true,  notes:"Activate the chest. Feel it, don't fatigue it." },
+                    { name:"Scapular Pull-Up or Band Pull-Apart",      sets:2, reps:"12", rest:45, isCheckbox:true,  notes:"Prime lats and rear delts. 45s rest then into compounds." }
+                ]},
+                { label:"COMPOUND 1 — Full Rest", type:"compound", exercises:[
+                    { name:"Weighted Dips (vest)", sets:4, reps:"8–10", rest:110, isCheckbox:false, notes:"Lean slightly forward for chest emphasis. Progress vest weekly." }
+                ]},
+                { label:"COMPOUND 2 — Full Rest", type:"compound", exercises:[
+                    { name:"Pull-Ups (weighted vest or BW)", sets:4, reps:"6–10", rest:110, isCheckbox:false, notes:"No kipping. Dead hang at bottom, chin over bar at top." }
+                ]},
+                { label:"SUPERSET A — Shoulder Press & Back", type:"superset", exercises:[
+                    { name:"DB Shoulder Press (seated or standing)", sets:3, reps:"10–12", rest:0,  isCheckbox:false, notes:"Dedicated overhead pressing. Control the descent." },
+                    { name:"Single-Arm DB Row (bench supported)",     sets:3, reps:"12/side", rest:60, isCheckbox:false, notes:"No rest between A1/A2. 60s after A2." }
+                ]},
+                { label:"SUPERSET B — Chest & Rear Delt", type:"superset", exercises:[
+                    { name:"Incline DB Press or Incline Barbell Press",      sets:3, reps:"10–12", rest:0,  isCheckbox:false, notes:"Both incline. Control the descent." },
+                    { name:"Chest-Supported Rear Delt Fly (DB or band)", sets:3, reps:"15",    rest:60, isCheckbox:false, notes:"No rest between B1/B2. 60s after B2." }
+                ]},
+                { label:"SUPERSET C — Biceps & Chest Fly", type:"superset", exercises:[
+                    { name:"Incline DB Curl (supinated)",            sets:3, reps:"10–12", rest:0,  isCheckbox:false, notes:"Stretch-focused." },
+                    { name:"Band Chest Fly (bilateral, mid-height)", sets:3, reps:"12–15", rest:60, isCheckbox:false, notes:"Feel the stretch at the bottom. 60s after C2." }
+                ]},
+                { label:"SUPERSET D — Triceps & Face Pulls", type:"superset", exercises:[
+                    { name:"Band Overhead Tricep Extension (anchor low)", sets:3, reps:"12–15", rest:0,  isCheckbox:false, notes:"" },
+                    { name:"Band Face Pulls (mid-height anchor)",          sets:3, reps:"15",    rest:45, isCheckbox:false, notes:"Elbows high. External rotation at end range. 45s after D2." }
+                ]},
+                { label:"FINISHER", type:"finisher", exercises:[
+                    { name:"Dead Hang",                                   sets:3, reps:"20–30s",  rest:0, isCheckbox:true, notes:"" },
+                    { name:"Lizard Walk Push-Ups or Archer Push-Ups", sets:2, reps:"6–8/side", rest:0, isCheckbox:true, notes:"Bodyweight. Quality over reps." }
+                ]}
             ]
         },
         "Lower Body": {
             dayLabel: "Tuesday",
             warmup: [
-                { name: "90/90 Hip Switch + Posterior Pelvic Tilt Breathing", detail: "2 × 8/side — flatten lower back into floor on exhale" },
-                { name: "Banded Monster Walks", detail: "2 × 15 each direction" },
-                { name: "Hip Flexor March (banded)", detail: "2 × 12/side" },
-                { name: "Glute Bridge (bodyweight)", detail: "2 × 15" }
+                { name:"90/90 Hip Switch + Posterior Pelvic Tilt Breathing", detail:"2 × 8/side — flatten lower back into floor on exhale" },
+                { name:"Banded Monster Walks", detail:"2 × 15 each direction" },
+                { name:"Hip Flexor March (banded)", detail:"2 × 12/side" },
+                { name:"Glute Bridge (bodyweight)", detail:"2 × 15" }
             ],
             blocks: [
-                {
-                    label: "ACTIVATION CIRCUIT", type: "activation",
-                    exercises: [
-                        { name: "KB Goblet Squat (26lb — light)", sets: 2, reps: "10", rest: 0, isCheckbox: true, notes: "Feel quads and glutes loading. Not a working set." },
-                        { name: "Single-Leg Glute Bridge or Banded Hip Thrust", sets: 2, reps: "12/side", rest: 0, isCheckbox: true, notes: "Prime posterior chain." },
-                        { name: "Banded Hamstring Curl or Monkey Feet Heel Curl", sets: 2, reps: "12", rest: 45, isCheckbox: true, notes: "Warm tissue before heavy hinge. 45s rest after ACT3 then into belt squat." }
-                    ]
-                },
-                {
-                    label: "COMPOUND 1 — Full Rest", type: "compound",
-                    exercises: [
-                        { name: "Belt Squat", sets: 4, reps: "8–10", rest: 90, isCheckbox: false, notes: "Heel wedge optional for depth. Stay tall through torso." }
-                    ]
-                },
-                {
-                    label: "COMPOUND 2 — Full Rest", type: "compound",
-                    exercises: [
-                        { name: "DB Romanian Deadlift", sets: 4, reps: "10–12", rest: 90, isCheckbox: false, notes: "Chase tension not depth. Feel hamstring load at bottom. Sub SL-RDL if back is talking." }
-                    ]
-                },
-                {
-                    label: "SUPERSET A — Glute & Quad", type: "superset",
-                    exercises: [
-                        { name: "Bulgarian Split Squat (DB)", sets: 3, reps: "8–10/side", rest: 0, isCheckbox: false, notes: "Back foot elevated on bench. Front foot flat on floor." },
-                        { name: "Hip Thrust (barbell or Smith)", sets: 3, reps: "12–15", rest: 75, isCheckbox: false, notes: "Squeeze hard at top. 75s rest after A2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET B — Adductors & Step Pattern", type: "superset",
-                    exercises: [
-                        { name: "Copenhagen Plank", sets: 3, reps: "20–30s/side", rest: 0, isCheckbox: true, notes: "Progress bent-knee to straight-leg over weeks." },
-                        { name: "Deficit Reverse Lunge or Step-Up (front foot elevated)", sets: 3, reps: "10/side", rest: 60, isCheckbox: false, notes: "10–12in step. Skip if right hip socket symptomatic — sub leg extension." }
-                    ]
-                },
-                {
-                    label: "SUPERSET C — Calf & Core", type: "superset",
-                    exercises: [
-                        { name: "Seated Calf Raise (DB on knee or Smith)", sets: 3, reps: "15–20", rest: 0, isCheckbox: false, notes: "Full ROM. Pause at stretch." },
-                        { name: "Dead Bug (slow alternating)", sets: 3, reps: "8/side", rest: 60, isCheckbox: true, notes: "Lower back stays flat entire set." }
-                    ]
-                }
+                { label:"ACTIVATION CIRCUIT", type:"activation", exercises:[
+                    { name:"KB Goblet Squat (26lb — light)",                   sets:2, reps:"10",    rest:0,  isCheckbox:true, notes:"Feel quads and glutes loading. Not a working set." },
+                    { name:"Single-Leg Glute Bridge or Banded Hip Thrust", sets:2, reps:"12/side", rest:0,  isCheckbox:true, notes:"Prime posterior chain." },
+                    { name:"Banded Hamstring Curl or Monkey Feet Heel Curl",   sets:2, reps:"12",    rest:45, isCheckbox:true, notes:"Warm tissue before heavy hinge. 45s rest then into belt squat." }
+                ]},
+                { label:"COMPOUND 1 — Full Rest", type:"compound", exercises:[
+                    { name:"Belt Squat", sets:4, reps:"8–10", rest:90, isCheckbox:false, notes:"Heel wedge optional. Stay tall through torso." }
+                ]},
+                { label:"COMPOUND 2 — Full Rest", type:"compound", exercises:[
+                    { name:"DB Romanian Deadlift", sets:4, reps:"10–12", rest:90, isCheckbox:false, notes:"Chase tension not depth. Sub SL-RDL if back is talking." }
+                ]},
+                { label:"SUPERSET A — Glute & Quad", type:"superset", exercises:[
+                    { name:"Bulgarian Split Squat (DB)",    sets:3, reps:"8–10/side", rest:0,  isCheckbox:false, notes:"Back foot elevated on bench. Front foot flat." },
+                    { name:"Hip Thrust (barbell or Smith)", sets:3, reps:"12–15",     rest:75, isCheckbox:false, notes:"Squeeze hard at top. 75s after A2." }
+                ]},
+                { label:"SUPERSET B — Adductors & Step Pattern", type:"superset", exercises:[
+                    { name:"Copenhagen Plank",                                          sets:3, reps:"20–30s/side", rest:0,  isCheckbox:true,  notes:"Progress bent-knee to straight-leg over weeks." },
+                    { name:"Deficit Reverse Lunge or Step-Up (front foot elevated)", sets:3, reps:"10/side",      rest:60, isCheckbox:false, notes:"10–12in step. Skip if right hip socket symptomatic." }
+                ]},
+                { label:"SUPERSET C — Calf & Core", type:"superset", exercises:[
+                    { name:"Seated Calf Raise (DB on knee or Smith)", sets:3, reps:"15–20",  rest:0,  isCheckbox:false, notes:"Full ROM. Pause at stretch." },
+                    { name:"Dead Bug (slow alternating)",              sets:3, reps:"8/side", rest:60, isCheckbox:true,  notes:"Lower back stays flat entire set." }
+                ]}
             ]
         },
         "Full Body + Functional": {
             dayLabel: "Thursday",
             warmup: [
-                { name: "Inchworms + Bootstrappers + Plank-to-Toe-Touch flow", detail: "2 min continuous flow — get blood moving" },
-                { name: "World's Greatest Stretch", detail: "2 × 5/side" },
-                { name: "90/90 Breathing + Posterior Pelvic Tilt", detail: "2 × 5 breaths" },
-                { name: "KB Single-Hand Swing into Walking Lunge", detail: "2 × 5 swings + 3 lunges/side" }
+                { name:"Inchworms + Bootstrappers + Plank-to-Toe-Touch flow", detail:"2 min continuous — get blood moving first" },
+                { name:"World's Greatest Stretch", detail:"2 × 5/side" },
+                { name:"90/90 Breathing + Posterior Pelvic Tilt", detail:"2 × 5 breaths" },
+                { name:"KB Single-Hand Swing into Walking Lunge", detail:"2 × 5 swings + 3 lunges/side" }
             ],
             blocks: [
-                {
-                    label: "ACTIVATION SUPERSET", type: "activation",
-                    exercises: [
-                        { name: "KB Windmill (light — 26lb)", sets: 2, reps: "3/side", rest: 0, isCheckbox: true, notes: "Opens hip, thoracic rotation, primes shoulder." },
-                        { name: "Half-Kneeling Pallof Press (light band)", sets: 2, reps: "10/side", rest: 45, isCheckbox: true, notes: "Anti-rotation primer. 45s rest after ACT2." }
-                    ]
-                },
-                {
-                    label: "COMPOUND 1 — Full Rest", type: "compound",
-                    exercises: [
-                        { name: "Chest-Supported Incline Row (DB)", sets: 4, reps: "10–12", rest: 75, isCheckbox: false, notes: "Set bench 30–45°. Lie chest-down. Full stretch at bottom. No hip drive." }
-                    ]
-                },
-                {
-                    label: "SUPERSET A — Press & Anti-Rotation", type: "superset",
-                    exercises: [
-                        { name: "Half-Kneeling Single-Arm DB Press", sets: 3, reps: "10/side", rest: 0, isCheckbox: false, notes: "Challenges hip flexor length and core stability." },
-                        { name: "Pallof Press (band anchored mid-height)", sets: 3, reps: "12/side", rest: 60, isCheckbox: true, notes: "Slow press out and return. 60s rest after A2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET B — Hinge & Pull-Through", type: "superset",
-                    exercises: [
-                        { name: "Single-Leg RDL (DB or 53lb KB)", sets: 3, reps: "8–10/side", rest: 0, isCheckbox: false, notes: "Contralateral loading. Sub KB deadlift if right hip symptomatic." },
-                        { name: "Band Pull-Through (anchor low on rack)", sets: 3, reps: "15", rest: 60, isCheckbox: true, notes: "Hip hinge. Glute drive at top. Always safe." }
-                    ]
-                },
-                {
-                    label: "SUPERSET C — Lateral Delt & Rotation", type: "superset",
-                    exercises: [
-                        { name: "Band or DB Lateral Raise", sets: 3, reps: "15–18", rest: 0, isCheckbox: false, notes: "Band under foot bilateral, or DB — same intent." },
-                        { name: "Half-Kneeling Cable Chop (band, high to low)", sets: 3, reps: "12/side", rest: 45, isCheckbox: true, notes: "Control the return. 45s rest after C2." }
-                    ]
-                },
-                {
-                    label: "SUPERSET D — Arms & Traps", type: "superset",
-                    exercises: [
-                        { name: "Hammer Curl (DB)", sets: 3, reps: "12–14", rest: 0, isCheckbox: false, notes: "" },
-                        { name: "Band Tricep Pushdown (anchor high)", sets: 3, reps: "15", rest: 0, isCheckbox: false, notes: "" },
-                        { name: "KB or DB High Pull", sets: 2, reps: "12–15", rest: 45, isCheckbox: false, notes: "Explosive pull from hip height. Elbows high and wide. 45s after D3." }
-                    ]
-                },
-                {
-                    label: "SKILL BLOCK", type: "superset",
-                    exercises: [
-                        { name: "Box Pistol Squat (to bench height)", sets: 3, reps: "5–8/side", rest: 60, isCheckbox: false, notes: "Use light KB counterbalance. Progress depth over weeks. Skip if hip symptomatic." }
-                    ]
-                },
-                {
-                    label: "FINISHER — Carries · Mace · Core", type: "finisher",
-                    exercises: [
-                        { name: "Farmer's Carry (heavy DB)", sets: 3, reps: "30m", rest: 0, isCheckbox: true, notes: "Heavy and purposeful." },
-                        { name: "Steel Mace 360s", sets: 3, reps: "10/direction", rest: 0, isCheckbox: true, notes: "Smooth arc. Both directions." },
-                        { name: "Steel Mace Alternating Lunge", sets: 2, reps: "10/side", rest: 0, isCheckbox: true, notes: "Alternate grip each rep." },
-                        { name: "Bird Dog", sets: 2, reps: "8/side", rest: 0, isCheckbox: true, notes: "Slow. Lumbar neutral. 4-2-4 tempo." }
-                    ]
-                }
+                { label:"ACTIVATION SUPERSET", type:"activation", exercises:[
+                    { name:"KB Windmill (light — 26lb)",          sets:2, reps:"3/side",   rest:0,  isCheckbox:true, notes:"Opens hip, thoracic rotation, primes shoulder." },
+                    { name:"Half-Kneeling Pallof Press (light band)", sets:2, reps:"10/side", rest:45, isCheckbox:true, notes:"Anti-rotation primer. 45s rest after ACT2." }
+                ]},
+                { label:"COMPOUND 1 — Full Rest", type:"compound", exercises:[
+                    { name:"Chest-Supported Incline Row (DB)", sets:4, reps:"10–12", rest:75, isCheckbox:false, notes:"Set bench 30–45°. Lie chest-down. Full stretch at bottom. No hip drive." }
+                ]},
+                { label:"SUPERSET A — Press & Anti-Rotation", type:"superset", exercises:[
+                    { name:"Half-Kneeling Single-Arm DB Press",       sets:3, reps:"10/side",  rest:0,  isCheckbox:false, notes:"Challenges hip flexor length and core stability." },
+                    { name:"Pallof Press (band anchored mid-height)", sets:3, reps:"12/side",  rest:60, isCheckbox:true,  notes:"Slow press out and return. 60s after A2." }
+                ]},
+                { label:"SUPERSET B — Hinge & Pull-Through", type:"superset", exercises:[
+                    { name:"Single-Leg RDL (DB or 53lb KB)",       sets:3, reps:"8–10/side", rest:0,  isCheckbox:false, notes:"Contralateral loading. Sub KB deadlift if right hip symptomatic." },
+                    { name:"Band Pull-Through (anchor low on rack)", sets:3, reps:"15",        rest:60, isCheckbox:false, notes:"Hip hinge. Glute drive at top." }
+                ]},
+                { label:"SUPERSET C — Lateral Delt & Rotation", type:"superset", exercises:[
+                    { name:"Band or DB Lateral Raise",                     sets:3, reps:"15–18",  rest:0,  isCheckbox:false, notes:"Band under foot bilateral, or DB — same intent." },
+                    { name:"Half-Kneeling Cable Chop (band, high to low)", sets:3, reps:"12/side", rest:45, isCheckbox:false, notes:"Control the return. 45s after C2." }
+                ]},
+                { label:"SUPERSET D — Arms & Traps", type:"superset", exercises:[
+                    { name:"Hammer Curl (DB)",               sets:3, reps:"12–14", rest:0,  isCheckbox:false, notes:"" },
+                    { name:"Band Tricep Pushdown (anchor high)", sets:3, reps:"15",    rest:0,  isCheckbox:false, notes:"" },
+                    { name:"KB or DB High Pull",              sets:2, reps:"12–15", rest:45, isCheckbox:false, notes:"Explosive pull from hip height. Elbows high and wide." }
+                ]},
+                { label:"SKILL BLOCK", type:"superset", exercises:[
+                    { name:"Box Pistol Squat (to bench height)", sets:3, reps:"5–8/side", rest:60, isCheckbox:false, notes:"Use light KB counterbalance. Progress depth over weeks. Skip if hip symptomatic." }
+                ]},
+                { label:"FINISHER — Carries · Mace · Core", type:"finisher", exercises:[
+                    { name:"Farmer's Carry (heavy DB)",           sets:3, reps:"30m",        rest:0, isCheckbox:true, notes:"Heavy and purposeful." },
+                    { name:"Steel Mace 360s",                     sets:3, reps:"10/direction", rest:0, isCheckbox:true, notes:"Smooth arc. Both directions." },
+                    { name:"Steel Mace Alternating Lunge",        sets:2, reps:"10/side",    rest:0, isCheckbox:true, notes:"Alternate grip each rep." },
+                    { name:"Bird Dog",                            sets:2, reps:"8/side",     rest:0, isCheckbox:true, notes:"Slow. Lumbar neutral. 4-2-4 tempo." }
+                ]}
             ]
         },
         "Mobility + Flow": {
             dayLabel: "Friday (Optional)",
             warmup: [
-                { name: "Bear Crawl → Frogger → Monkey → Inchworm flow", detail: "2 min continuous — raise heart rate first" },
-                { name: "Bootstrappers + Hip Openers", detail: "2 × 8 each" },
-                { name: "Push-Ups + Air Squats", detail: "2 × 10 each" }
+                { name:"Bear Crawl → Frogger → Monkey → Inchworm flow", detail:"2 min continuous — raise heart rate first" },
+                { name:"Bootstrappers + Hip Openers", detail:"2 × 8 each" },
+                { name:"Push-Ups + Air Squats", detail:"2 × 10 each" }
             ],
             blocks: [
-                {
-                    label: "OPENING FLOW", type: "activation",
-                    exercises: [
-                        { name: "KB Windmill (light — 26lb)", sets: 2, reps: "5/side slow", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "World's Greatest Stretch", sets: 2, reps: "5/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Steel Mace 360s (light — flow not load)", sets: 2, reps: "8/direction", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Cat-Cow with breath (slow)", sets: 2, reps: "10", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                },
-                {
-                    label: "BLOCK 1 — Hip Flexor & Psoas", type: "superset",
-                    exercises: [
-                        { name: "90/90 Hip Flexor Stretch (posterior tilt first)", sets: 2, reps: "60–90s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Half-Kneeling Hip Flexor Lunge + overhead reach", sets: 2, reps: "45s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Couch Stretch (squeeze glute of back leg)", sets: 2, reps: "60s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Standing Psoas March (slow, diaphragmatic)", sets: 2, reps: "10/side", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                },
-                {
-                    label: "BLOCK 2 — Adductors & Inner Hip", type: "superset",
-                    exercises: [
-                        { name: "Wide-Stance Squat Hold", sets: 2, reps: "60s", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Cossack Squat (slow, straight leg heel stays down)", sets: 2, reps: "8/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Copenhagen Plank passive hold", sets: 2, reps: "20–30s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "KB Windmill (heavier — 35lb)", sets: 2, reps: "5/side", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                },
-                {
-                    label: "BLOCK 3 — Thoracic Spine", type: "superset",
-                    exercises: [
-                        { name: "Foam Roller T-Spine Extension (per segment)", sets: 3, reps: "8–10 ext", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Thread-the-Needle", sets: 2, reps: "8/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Steel Mace Alternating Lunge (flow pace)", sets: 2, reps: "8/side", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                },
-                {
-                    label: "BANDED UPPER + LOWER", type: "finisher",
-                    exercises: [
-                        { name: "Banded Monster Walks", sets: 2, reps: "to fatigue", rest: 0, isCheckbox: true, notes: "Each direction" },
-                        { name: "Band Pull-Aparts", sets: 2, reps: "to fatigue", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Band Face Pulls", sets: 2, reps: "to fatigue", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Band Lateral Raises", sets: 2, reps: "to fatigue", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                },
-                {
-                    label: "WIND-DOWN", type: "finisher",
-                    exercises: [
-                        { name: "Child's Pose + lateral reach", sets: 2, reps: "45s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Supine Figure-4", sets: 2, reps: "60s/side", rest: 0, isCheckbox: true, notes: "" },
-                        { name: "Legs Up Wall (passive)", sets: 1, reps: "3–5 min", rest: 0, isCheckbox: true, notes: "" }
-                    ]
-                }
+                { label:"OPENING FLOW", type:"activation", exercises:[
+                    { name:"KB Windmill (light — 26lb)",              sets:2, reps:"5/side slow",  rest:0, isCheckbox:true, notes:"" },
+                    { name:"World's Greatest Stretch",                sets:2, reps:"5/side",       rest:0, isCheckbox:true, notes:"" },
+                    { name:"Steel Mace 360s (light — flow not load)", sets:2, reps:"8/direction",  rest:0, isCheckbox:true, notes:"" },
+                    { name:"Cat-Cow with breath (slow)",              sets:2, reps:"10",            rest:0, isCheckbox:true, notes:"" }
+                ]},
+                { label:"BLOCK 1 — Hip Flexor & Psoas", type:"superset", exercises:[
+                    { name:"90/90 Hip Flexor Stretch (posterior tilt first)",  sets:2, reps:"60–90s/side", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Half-Kneeling Hip Flexor Lunge + overhead reach", sets:2, reps:"45s/side",     rest:0, isCheckbox:true, notes:"" },
+                    { name:"Couch Stretch (squeeze glute of back leg)",        sets:2, reps:"60s/side",     rest:0, isCheckbox:true, notes:"" },
+                    { name:"Standing Psoas March (slow, diaphragmatic)",       sets:2, reps:"10/side",      rest:0, isCheckbox:true, notes:"" }
+                ]},
+                { label:"BLOCK 2 — Adductors & Inner Hip", type:"superset", exercises:[
+                    { name:"Wide-Stance Squat Hold",                            sets:2, reps:"60s",          rest:0, isCheckbox:true, notes:"" },
+                    { name:"Cossack Squat (slow, straight leg heel stays down)", sets:2, reps:"8/side",      rest:0, isCheckbox:true, notes:"" },
+                    { name:"Copenhagen Plank passive hold",                     sets:2, reps:"20–30s/side",  rest:0, isCheckbox:true, notes:"" },
+                    { name:"KB Windmill (heavier — 35lb)",                      sets:2, reps:"5/side",       rest:0, isCheckbox:true, notes:"" }
+                ]},
+                { label:"BLOCK 3 — Thoracic Spine", type:"superset", exercises:[
+                    { name:"Foam Roller T-Spine Extension (per segment)", sets:3, reps:"8–10 ext", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Thread-the-Needle",                          sets:2, reps:"8/side",    rest:0, isCheckbox:true, notes:"" },
+                    { name:"Steel Mace Alternating Lunge (flow pace)",   sets:2, reps:"8/side",    rest:0, isCheckbox:true, notes:"" }
+                ]},
+                { label:"BANDED UPPER + LOWER", type:"finisher", exercises:[
+                    { name:"Banded Monster Walks", sets:2, reps:"to fatigue", rest:0, isCheckbox:true, notes:"Each direction" },
+                    { name:"Band Pull-Aparts",     sets:2, reps:"to fatigue", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Band Face Pulls",      sets:2, reps:"to fatigue", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Band Lateral Raises",  sets:2, reps:"to fatigue", rest:0, isCheckbox:true, notes:"" }
+                ]},
+                { label:"WIND-DOWN", type:"finisher", exercises:[
+                    { name:"Child's Pose + lateral reach", sets:2, reps:"45s/side", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Supine Figure-4",              sets:2, reps:"60s/side", rest:0, isCheckbox:true, notes:"" },
+                    { name:"Legs Up Wall (passive)",       sets:1, reps:"3–5 min",  rest:0, isCheckbox:true, notes:"" }
+                ]}
             ]
         }
     }
@@ -339,485 +238,390 @@ async function init() {
         storage.get('sp2-habits'),
         storage.get('sp2-program')
     ]);
-
     state.workouts = workouts || [];
-    state.program = program || DEFAULT_PROGRAM;
-
-    state.habits = habits || [
-        { name: '💧 100oz Water', frequency: 'Daily', target: 1, completions: [] },
-        { name: '📖 Read 10 Pages / 15 Min', frequency: 'Daily', target: 1, completions: [] },
-        { name: '☀️ 20 Min Sunlight', frequency: 'Daily', target: 1, completions: [] },
-        { name: '❤️ Show Wife Affection', frequency: 'Daily', target: 1, completions: [] },
-        { name: '💪 Resistance Training', frequency: 'Weekly', target: 3, completions: [] },
-        { name: '🎾 Zone 2 (Tennis/Cardio)', frequency: 'Weekly-Range', target: 1, completions: [], weeklyRange: {} },
-        { name: '⚡ Zone 5 Cardio', frequency: 'Weekly', target: 1, completions: [] },
-        { name: '🧘 Morning Routine (Breathwork, Meditation, Prayer, Gratitude)', frequency: 'Weekly', target: 5, completions: [] },
-        { name: '🍎 Track Macros & Follow Food Rules', frequency: 'Weekly', target: 6, completions: [] }
+    state.program  = program  || DEFAULT_PROGRAM;
+    state.habits   = habits   || [
+        { name:'💧 100oz Water',              frequency:'Daily', completions:[] },
+        { name:'📖 Read 10 Pages / 15 Min',  frequency:'Daily', completions:[] },
+        { name:'☀️ 20 Min Sunlight',          frequency:'Daily', completions:[] },
+        { name:'❤️ Show Wife Affection',      frequency:'Daily', completions:[] },
+        { name:'💪 Resistance Training',      frequency:'Daily', completions:[] },
+        { name:'⚡ Zone 5 Cardio',            frequency:'Daily', completions:[] },
+        { name:'🧘 Morning Routine',          frequency:'Daily', completions:[] },
+        { name:'🍎 Track Macros',             frequency:'Daily', completions:[] },
+        { name:'🎾 Zone 2 (Tennis/Cardio)',   frequency:'Weekly-Range', completions:[], weeklyRange:{} }
     ];
-
-    if (!habits) await storage.set('sp2-habits', state.habits);
-    if (!program) await storage.set('sp2-program', state.program);
-
+    if (!habits) save();
     render();
 }
 
 function save() {
     storage.set('sp2-workouts', state.workouts);
-    storage.set('sp2-habits', state.habits);
-    storage.set('sp2-program', state.program);
+    storage.set('sp2-habits',   state.habits);
+    storage.set('sp2-program',  state.program);
 }
 
-// ── WEEK / PROGRAM UTILS ──────────────────────────────────────────────────────
+// ── UTILS ─────────────────────────────────────────────────────────────────────
 function getCurrentWeek() {
     if (!state.program?.startDate) return 1;
-    const start = new Date(state.program.startDate);
-    const startMon = new Date(start);
-    startMon.setDate(start.getDate() - start.getDay() + 1);
-    startMon.setHours(0,0,0,0);
-    const nowMon = new Date();
-    nowMon.setDate(nowMon.getDate() - nowMon.getDay() + 1);
-    nowMon.setHours(0,0,0,0);
-    const diff = Math.floor((nowMon - startMon) / (1000*60*60*24*7));
+    const sm = mondayOf(new Date(state.program.startDate));
+    const nm = mondayOf(new Date());
+    const diff = Math.floor((nm - sm) / 604800000);
     return (diff % (state.program.duration || 6)) + 1;
 }
-
-function getWeekDates() {
-    const now = new Date();
-    const week = [];
-    const diff = now.getDate() - now.getDay();
-    for (let i = 0; i < 7; i++) {
-        const d = new Date(now); d.setDate(diff + i);
-        week.push(d.toDateString());
-    }
-    return week;
+function mondayOf(d) {
+    const r = new Date(d);
+    r.setDate(d.getDate() - ((d.getDay()+6)%7));
+    r.setHours(0,0,0,0);
+    return r;
 }
-
+function getWeekDates() {
+    const mon = mondayOf(new Date());
+    return Array.from({length:7}, (_,i) => { const d=new Date(mon); d.setDate(mon.getDate()+i); return d.toDateString(); });
+}
 function getLastWorkout(dayName) {
-    return state.workouts
-        .filter(w => w.day === dayName)
-        .sort((a,b) => new Date(b.date) - new Date(a.date))[0] || null;
+    return [...state.workouts].filter(w=>w.day===dayName).sort((a,b)=>new Date(b.date)-new Date(a.date))[0] || null;
+}
+function getISOWeek(date) {
+    const d = new Date(date); d.setHours(0,0,0,0);
+    d.setDate(d.getDate()+3-((d.getDay()+6)%7));
+    const w1 = new Date(d.getFullYear(),0,4);
+    return `${d.getFullYear()}-W${String(Math.round(((d-w1)/86400000-3+(w1.getDay()+6)%7)/7)+1).padStart(2,'0')}`;
 }
 
 // ── RENDER ────────────────────────────────────────────────────────────────────
 function render() {
-    document.getElementById('app').innerHTML = header() + nav() + content();
+    document.getElementById('app').innerHTML = renderHeader() + renderNav() + renderContent();
 }
+function switchView(v) { state.view=v; render(); }
 
-function header() {
-    return `
-        <div style="background: linear-gradient(135deg, #111 0%, #1a1a1a 100%); border-bottom: 1px solid #242424;" class="p-5 pb-4">
-            <div class="flex items-center justify-between">
-                <div>
-                    <h1 class="text-2xl font-black tracking-tight" style="color:#c8f542">SUMMIT PRO</h1>
-                    <p class="text-xs mt-0.5" style="color:#555">Spring / Summer 2026 · v2.3</p>
-                </div>
-                <div class="text-right">
-                    <div class="text-xs" style="color:#555">WEEK</div>
-                    <div class="text-2xl font-black" style="color:#c8f542">${getCurrentWeek()}<span class="text-sm font-normal" style="color:#444">/${state.program?.duration||6}</span></div>
-                </div>
+function renderHeader() {
+    return `<div style="background:#111; border-bottom:1px solid #242424;" class="p-5">
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-2xl font-black tracking-tight" style="color:#c8f542">SUMMIT PRO</h1>
+                <p class="text-xs mt-0.5" style="color:#444">Spring / Summer 2026 · v2.3</p>
             </div>
-        </div>`;
-}
-
-function nav() {
-    const tabs = [
-        { id:'workout', label:'Workout', icon:'💪' },
-        { id:'dashboard', label:'Stats', icon:'📊' },
-        { id:'habits', label:'Habits', icon:'✓' }
-    ];
-    return `
-        <div style="background:#111; border-bottom:1px solid #242424;" class="sticky top-0 z-10">
-            <div class="flex">
-                ${tabs.map(t => `
-                    <button onclick="switchView('${t.id}')" class="flex-1 py-3 text-center transition-colors ${state.view===t.id ? 'border-b-2' : ''}"
-                        style="${state.view===t.id ? 'color:#c8f542; border-color:#c8f542; background:#161616;' : 'color:#555;'}">
-                        <div class="text-lg">${t.icon}</div>
-                        <div class="text-xs font-medium mt-0.5">${t.label}</div>
-                    </button>`).join('')}
+            <div class="text-right">
+                <div class="text-xs" style="color:#444">WEEK</div>
+                <div class="text-2xl font-black" style="color:#c8f542">${getCurrentWeek()}<span class="text-sm font-normal" style="color:#444">/${state.program?.duration||6}</span></div>
             </div>
-        </div>`;
+        </div>
+    </div>`;
 }
 
-function content() {
-    if (state.view === 'workout') return workoutView();
-    if (state.view === 'dashboard') return dashboardView();
-    if (state.view === 'habits') return habitsView();
+function renderNav() {
+    const tabs = [{id:'workout',label:'Workout',icon:'💪'},{id:'dashboard',label:'Stats',icon:'📊'},{id:'habits',label:'Habits',icon:'✓'}];
+    return `<div style="background:#111; border-bottom:1px solid #242424;" class="sticky top-0 z-10">
+        <div class="flex">
+            ${tabs.map(t=>`<button onclick="switchView('${t.id}')" class="flex-1 py-3 text-center transition-colors ${state.view===t.id?'border-b-2':''}"
+                style="${state.view===t.id?'color:#c8f542;border-color:#c8f542;background:#161616;':'color:#555;'}">
+                <div class="text-lg">${t.icon}</div>
+                <div class="text-xs font-medium mt-0.5">${t.label}</div>
+            </button>`).join('')}
+        </div>
+    </div>`;
+}
+
+function renderContent() {
+    if (state.view==='workout')   return renderWorkoutView();
+    if (state.view==='dashboard') return renderDashboardView();
+    if (state.view==='habits')    return renderHabitsView();
     return '';
 }
 
-// ── WORKOUT VIEW ──────────────────────────────────────────────────────────────
-function workoutView() {
-    if (state.currentWorkout) return activeWorkoutView();
+// ── WORKOUT HOME ──────────────────────────────────────────────────────────────
+function renderWorkoutView() {
+    if (state.currentWorkout) return renderActiveWorkout();
 
     const weekDates = getWeekDates();
     const doneThisWeek = {};
-    state.workouts.forEach(w => {
-        if (weekDates.includes(new Date(w.date).toDateString())) doneThisWeek[w.day] = true;
-    });
+    state.workouts.forEach(w => { if (weekDates.includes(new Date(w.date).toDateString())) doneThisWeek[w.day]=true; });
 
-    const dayColors = {
-        'Upper Body': '#c8f542',
-        'Lower Body': '#42c8f5',
-        'Full Body + Functional': '#f57c42',
-        'Mobility + Flow': '#b842f5'
-    };
+    const DC = {'Upper Body':'#c8f542','Lower Body':'#42c8f5','Full Body + Functional':'#f57c42','Mobility + Flow':'#b842f5'};
 
-    return `
-        <div class="p-4">
-            <div class="mb-4">
-                <h2 class="text-lg font-bold mb-3" style="color:#888; letter-spacing:2px; font-size:11px;">THIS WEEK'S WORKOUTS</h2>
-                <div class="space-y-2">
-                    ${(state.program?.split || []).map(day => {
-                        const done = doneThisWeek[day];
-                        const details = state.program?.programDetails?.[day];
-                        const dc = dayColors[day] || '#c8f542';
-                        const last = getLastWorkout(day);
-                        return `
-                            <div class="day-card rounded-lg p-4 flex items-center justify-between" style="background:#161616; border:1px solid ${done ? dc : '#242424'};">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <div class="w-2 h-2 rounded-full" style="background:${dc}"></div>
-                                        <span class="font-bold text-sm" style="color:${dc}">${day}</span>
-                                        ${done ? '<span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:#1a2e00; color:#c8f542;">✓ Done</span>' : ''}
-                                    </div>
-                                    <div class="text-xs mt-1" style="color:#555">${details?.dayLabel || ''} · ${details ? totalExercises(details) + ' exercises' : ''}</div>
-                                    ${last ? `<div class="text-xs mt-1" style="color:#444">Last: ${new Date(last.date).toLocaleDateString()}</div>` : ''}
-                                </div>
-                                <button onclick="startDay('${day}')" class="px-4 py-2 rounded-lg text-sm font-bold ml-3"
-                                    style="background:${done ? '#1a1a1a' : dc}; color:${done ? dc : '#000'}; border:1px solid ${dc};">
-                                    ${done ? 'Redo' : 'Start'}
-                                </button>
-                            </div>`;
-                    }).join('')}
-                </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2 mb-4">
-                <button onclick="showHistory()" class="py-3 rounded-lg text-sm font-medium" style="background:#161616; color:#888; border:1px solid #242424;">
-                    📅 History
-                </button>
-                <button onclick="startCustom()" class="py-3 rounded-lg text-sm font-medium" style="background:#161616; color:#888; border:1px solid #242424;">
-                    ➕ Custom
-                </button>
-            </div>
-
-            ${recentWorkoutsList()}
-        </div>`;
-}
-
-function totalExercises(details) {
-    return details.blocks.reduce((sum, b) => sum + b.exercises.length, 0);
-}
-
-function recentWorkoutsList() {
-    const recent = state.workouts.slice(-4).reverse();
-    if (!recent.length) return '';
-    return `
-        <div>
-            <h3 class="text-xs font-bold mb-2" style="color:#555; letter-spacing:2px;">RECENT</h3>
-            <div class="space-y-2">
-                ${recent.map(w => `
-                    <div class="rounded-lg p-3 flex justify-between items-center" style="background:#161616; border:1px solid #242424;">
-                        <div>
-                            <div class="text-sm font-medium">${w.day}</div>
-                            <div class="text-xs" style="color:#555">${new Date(w.date).toLocaleDateString()} · Week ${w.week}</div>
+    return `<div class="p-4">
+        <h3 class="text-xs font-bold mb-3" style="color:#555;letter-spacing:2px;">THIS WEEK</h3>
+        <div class="space-y-2 mb-4">
+            ${(state.program?.split||[]).map(day => {
+                const done = doneThisWeek[day];
+                const dc = DC[day]||'#c8f542';
+                const det = state.program?.programDetails?.[day];
+                const last = getLastWorkout(day);
+                const exCount = det?.blocks?.reduce((s,b)=>s+b.exercises.length,0)||0;
+                return `<div class="day-card rounded-lg p-4 flex items-center justify-between" style="background:#161616;border:1px solid ${done?dc:'#242424'};">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full flex-shrink-0" style="background:${dc}"></div>
+                            <span class="font-bold text-sm" style="color:${dc}">${day}</span>
+                            ${done?`<span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:#1a2e00;color:#c8f542;">✓ Done</span>`:''}
                         </div>
-                        <div class="text-xs" style="color:#555">${w.exercises?.length || 0} ex</div>
-                    </div>`).join('')}
-            </div>
+                        <div class="text-xs mt-1 ml-4" style="color:#444">${det?.dayLabel||''} · ${exCount} exercises</div>
+                        ${last?`<div class="text-xs mt-0.5 ml-4" style="color:#333">Last: ${new Date(last.date).toLocaleDateString()}</div>`:''}
+                    </div>
+                    <button onclick="startDay('${day}')" class="px-4 py-2 rounded-lg text-sm font-bold ml-3 flex-shrink-0"
+                        style="background:${done?'#1a1a1a':dc};color:${done?dc:'#000'};border:1px solid ${dc};">
+                        ${done?'Redo':'Start'}
+                    </button>
+                </div>`;
+            }).join('')}
+        </div>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+            <button onclick="showHistory()" class="py-3 rounded-lg text-sm font-medium" style="background:#161616;color:#666;border:1px solid #242424;">📅 History</button>
+            <button onclick="startCustom()"  class="py-3 rounded-lg text-sm font-medium" style="background:#161616;color:#666;border:1px solid #242424;">➕ Custom</button>
+        </div>
+        ${renderRecentList()}
+    </div>`;
+}
+
+function renderRecentList() {
+    const recent = [...state.workouts].slice(-4).reverse();
+    if (!recent.length) return '';
+    return `<h3 class="text-xs font-bold mb-2" style="color:#444;letter-spacing:2px;">RECENT</h3>
+        <div class="space-y-2">
+            ${recent.map(w=>`<div class="rounded-lg p-3 flex justify-between items-center" style="background:#161616;border:1px solid #242424;">
+                <div>
+                    <div class="text-sm font-medium">${w.day}</div>
+                    <div class="text-xs" style="color:#444">${new Date(w.date).toLocaleDateString()} · Week ${w.week}</div>
+                </div>
+                <div class="text-xs" style="color:#444">${w.exercises?.length||0} ex</div>
+            </div>`).join('')}
         </div>`;
 }
 
-// ── START WORKOUT ─────────────────────────────────────────────────────────────
+// ── START DAY ─────────────────────────────────────────────────────────────────
 function startDay(dayName) {
-    const details = state.program?.programDetails?.[dayName];
-    if (!details) return;
-
+    const det = state.program?.programDetails?.[dayName];
+    if (!det) return;
     const last = getLastWorkout(dayName);
     const exercises = [];
 
-    details.blocks.forEach(block => {
+    det.blocks.forEach(block => {
         block.exercises.forEach(ex => {
-            const lastEx = last?.exercises?.find(e => e.name === ex.name);
+            const lastEx = last?.exercises?.find(e=>e.name===ex.name);
             if (ex.isCheckbox) {
                 exercises.push({
-                    name: ex.name,
-                    isCheckbox: true,
-                    blockLabel: block.label,
-                    blockType: block.type,
-                    sets: Array(ex.sets).fill(null).map(() => ({ checked: false })),
-                    templateNotes: ex.notes,
-                    detail: ex.reps,
-                    restSeconds: ex.rest,
-                    notes: lastEx?.notes || ''
+                    name: ex.name, isCheckbox: true,
+                    blockLabel: block.label, blockType: block.type,
+                    sets: Array(ex.sets).fill(null).map(()=>({checked:false})),
+                    detail: ex.reps, restSeconds: ex.rest,
+                    templateNotes: ex.notes, notes: lastEx?.notes||''
                 });
             } else {
-                const sets = [];
-                for (let i = 0; i < ex.sets; i++) {
-                    sets.push({
-                        weight: lastEx?.sets?.[i]?.weight || '',
-                        reps: lastEx?.sets?.[i]?.reps || '',
-                        done: false
-                    });
-                }
+                const sets = Array(ex.sets).fill(null).map((_,i)=>({
+                    weight: lastEx?.sets?.[i]?.weight||'',
+                    reps:   lastEx?.sets?.[i]?.reps||''
+                }));
                 exercises.push({
-                    name: ex.name,
-                    isCheckbox: false,
-                    blockLabel: block.label,
-                    blockType: block.type,
-                    sets,
+                    name: ex.name, isCheckbox: false,
+                    blockLabel: block.label, blockType: block.type,
+                    sets, targetReps: ex.reps, restSeconds: ex.rest,
                     templateNotes: ex.notes,
-                    targetReps: ex.reps,
-                    restSeconds: ex.rest,
-                    notes: lastEx?.notes || '',
-                    lastNotes: lastEx?.notes || null
+                    notes: lastEx?.notes||'',
+                    lastNotes: lastEx?.notes||null
                 });
             }
         });
     });
 
-    state.currentWorkout = {
-        day: dayName,
-        date: new Date().toISOString(),
-        week: getCurrentWeek(),
-        exercises,
-        warmup: details.warmup
-    };
+    state.currentWorkout = { day:dayName, date:new Date().toISOString(), week:getCurrentWeek(), exercises, warmup:det.warmup };
     render();
 }
 
 function startCustom() {
     const name = prompt('Workout name:');
     if (!name) return;
-    state.currentWorkout = {
-        day: name, date: new Date().toISOString(), week: getCurrentWeek(),
-        exercises: [], warmup: []
-    };
+    state.currentWorkout = { day:name, date:new Date().toISOString(), week:getCurrentWeek(), exercises:[], warmup:[] };
     render();
 }
 
 // ── ACTIVE WORKOUT ────────────────────────────────────────────────────────────
-function activeWorkoutView() {
+function renderActiveWorkout() {
     const { day, exercises, warmup } = state.currentWorkout;
+    const BC = { activation:'#c8f542', compound:'#e8e8e8', superset:'#42c8f5', finisher:'#f57c42' };
 
-    const blockColors = { activation:'#c8f542', compound:'#e8e8e8', superset:'#42c8f5', finisher:'#f57c42' };
-
-    // Group exercises by block
+    // Group into blocks
     const blocks = [];
-    let currentBlock = null;
+    let cur = null;
     exercises.forEach(ex => {
-        if (!currentBlock || currentBlock.label !== ex.blockLabel) {
-            currentBlock = { label: ex.blockLabel, type: ex.blockType, exercises: [] };
-            blocks.push(currentBlock);
-        }
-        currentBlock.exercises.push(ex);
+        if (!cur || cur.label !== ex.blockLabel) { cur={label:ex.blockLabel,type:ex.blockType,exes:[]}; blocks.push(cur); }
+        cur.exes.push(ex);
     });
 
-    return `
-        <div class="p-4">
-            <!-- Header -->
-            <div class="rounded-lg p-4 mb-4" style="background: linear-gradient(135deg, #1a2e00, #111); border:1px solid #c8f542;">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <div class="text-xs font-bold mb-1" style="color:#c8f542; letter-spacing:2px;">ACTIVE WORKOUT</div>
-                        <div class="text-xl font-black">${day}</div>
-                        <div class="text-xs mt-1" style="color:#666">Week ${state.currentWorkout.week} · ${new Date().toLocaleDateString()}</div>
-                    </div>
-                    <button onclick="finishWorkout()" class="px-4 py-2 rounded-lg text-sm font-bold" style="background:#c8f542; color:#000;">
-                        Finish
-                    </button>
+    return `<div class="p-4">
+        <div class="rounded-lg p-4 mb-4" style="background:linear-gradient(135deg,#1a2e00,#111);border:1px solid #c8f542;">
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="text-xs font-bold mb-1" style="color:#c8f542;letter-spacing:2px;">ACTIVE WORKOUT</div>
+                    <div class="text-xl font-black">${day}</div>
+                    <div class="text-xs mt-0.5" style="color:#555">Week ${state.currentWorkout.week} · ${new Date().toLocaleDateString()}</div>
                 </div>
+                <button onclick="finishWorkout()" class="px-4 py-2 rounded-lg text-sm font-black" style="background:#c8f542;color:#000;">Finish</button>
             </div>
+        </div>
 
-            ${state.activeTimer ? restTimerHTML() : ''}
+        ${state.activeTimer ? renderTimerEl() : ''}
 
-            <!-- Warmup -->
-            ${warmup?.length ? `
-                <div class="mb-4 rounded-lg overflow-hidden" style="border:1px solid #242424;">
-                    <div class="px-4 py-2 flex items-center gap-2" style="background:#1a1a1a; border-bottom:1px solid #242424;">
-                        <div class="w-1 h-4 rounded" style="background:#888"></div>
-                        <span class="text-xs font-bold" style="color:#666; letter-spacing:2px;">WARM-UP</span>
-                    </div>
-                    <div class="divide-y" style="border-color:#242424;">
-                        ${warmup.map(w => `
-                            <div class="px-4 py-3 flex items-start gap-3">
-                                <div class="w-4 h-4 rounded border mt-0.5 flex-shrink-0" style="border-color:#333; background:#1a1a1a;"></div>
-                                <div>
-                                    <div class="text-sm">${w.name}</div>
-                                    ${w.detail ? `<div class="text-xs mt-0.5" style="color:#555">${w.detail}</div>` : ''}
-                                </div>
-                            </div>`).join('')}
-                    </div>
-                </div>` : ''}
-
-            <!-- Exercise Blocks -->
-            <div class="space-y-3 mb-4">
-                ${blocks.map((block, bi) => {
-                    const bc = blockColors[block.type] || '#888';
-                    const exIdx = exercises.findIndex(e => e.blockLabel === block.label);
-                    return `
-                        <div class="rounded-lg overflow-hidden" style="border:1px solid #242424;">
-                            <div class="px-4 py-2 flex items-center gap-2" style="background:#1a1a1a; border-bottom:1px solid #242424;">
-                                <div class="w-1 h-4 rounded" style="background:${bc}"></div>
-                                <span class="text-xs font-bold" style="color:${bc}; letter-spacing:1px;">${block.label}</span>
-                            </div>
-                            <div class="divide-y" style="border-color:#1e1e1e;">
-                                ${block.exercises.map((ex, localI) => {
-                                    const globalI = exIdx + localI;
-                                    return ex.isCheckbox
-                                        ? renderCheckboxEx(ex, globalI)
-                                        : renderWeightEx(ex, globalI);
-                                }).join('')}
-                            </div>
-                        </div>`;
-                }).join('')}
+        ${warmup?.length ? `
+        <div class="mb-4 rounded-lg overflow-hidden" style="border:1px solid #242424;">
+            <div class="px-4 py-2 flex items-center gap-2" style="background:#1a1a1a;border-bottom:1px solid #242424;">
+                <div class="w-1 h-4 rounded" style="background:#444"></div>
+                <span class="text-xs font-bold" style="color:#555;letter-spacing:2px;">WARM-UP</span>
             </div>
+            <div class="divide-y" style="border-color:#1e1e1e;">
+                ${warmup.map(w=>`<div class="px-4 py-3 flex items-start gap-3">
+                    <div class="w-4 h-4 rounded border mt-0.5 flex-shrink-0" style="border-color:#333;background:#111;"></div>
+                    <div><div class="text-sm">${w.name}</div>${w.detail?`<div class="text-xs mt-0.5" style="color:#444">${w.detail}</div>`:''}</div>
+                </div>`).join('')}
+            </div>
+        </div>` : ''}
 
-            <button onclick="addExercise()" class="w-full py-3 rounded-lg text-sm font-medium mb-2" style="background:#161616; color:#888; border:1px solid #333;">
-                + Add Exercise
-            </button>
-            <button onclick="cancelWorkout()" class="w-full py-2 rounded-lg text-sm" style="color:#555;">
-                Cancel Workout
-            </button>
-        </div>`;
+        <div class="space-y-3 mb-4">
+            ${blocks.map((block) => {
+                const bc = BC[block.type]||'#888';
+                const startIdx = exercises.findIndex(e=>e.blockLabel===block.label);
+                return `<div class="rounded-lg overflow-hidden" style="border:1px solid #242424;">
+                    <div class="px-4 py-2 flex items-center gap-2" style="background:#1a1a1a;border-bottom:1px solid #1e1e1e;">
+                        <div class="w-1 h-4 rounded flex-shrink-0" style="background:${bc}"></div>
+                        <span class="text-xs font-bold" style="color:${bc};letter-spacing:1px;">${block.label}</span>
+                    </div>
+                    <div class="divide-y" style="border-color:#1e1e1e;">
+                        ${block.exes.map((ex,li) => ex.isCheckbox
+                            ? renderCheckboxEx(ex, startIdx+li)
+                            : renderWeightEx(ex, startIdx+li)
+                        ).join('')}
+                    </div>
+                </div>`;
+            }).join('')}
+        </div>
+
+        <button onclick="addExercise()" class="w-full py-3 rounded-lg text-sm font-medium mb-2" style="background:#161616;color:#666;border:1px solid #333;">+ Add Exercise</button>
+        <button onclick="cancelWorkout()" class="w-full py-2 rounded-lg text-sm" style="color:#444;">Cancel Workout</button>
+    </div>`;
 }
 
+// ── CHECKBOX EXERCISE ─────────────────────────────────────────────────────────
 function renderCheckboxEx(ex, idx) {
-    const allDone = ex.sets.every(s => s.checked);
-    return `
-        <div class="p-4" style="${allDone ? 'background:#0d1a00;' : ''}">
-            <div class="flex items-start justify-between mb-2">
-                <div class="flex-1">
-                    <div class="font-medium text-sm">${ex.name}</div>
-                    <div class="text-xs mt-0.5" style="color:#555">${ex.sets.length} × ${ex.detail}</div>
-                    ${ex.templateNotes ? `<div class="text-xs mt-1 italic" style="color:#4a7c00">${ex.templateNotes}</div>` : ''}
-                </div>
-                ${ex.restSeconds > 0 ? `<button onclick="startTimer(${ex.restSeconds})" class="text-xs px-2 py-1 rounded ml-2" style="background:#1a1a1a; color:#42c8f5; border:1px solid #2a2a2a;">⏱ ${ex.restSeconds}s</button>` : ''}
+    const allDone = ex.sets.every(s=>s.checked);
+    return `<div class="p-4" style="${allDone?'background:#0d1a00;':''}">
+        <div class="flex items-start justify-between mb-2">
+            <div class="flex-1 pr-2">
+                <div class="font-medium text-sm">${ex.name}</div>
+                <div class="text-xs mt-0.5" style="color:#555">${ex.sets.length} × ${ex.detail}</div>
+                ${ex.templateNotes?`<div class="text-xs mt-1 italic" style="color:#4a7c00">${ex.templateNotes}</div>`:''}
             </div>
-            <div class="flex gap-2 flex-wrap mb-3">
-                ${ex.sets.map((s, si) => `
-                    <button onclick="toggleCheck(${idx}, ${si})"
-                        class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
-                        style="${s.checked ? 'background:#c8f542; color:#000;' : 'background:#1a1a1a; color:#555; border:1px solid #333;'}">
-                        ${s.checked ? '✓' : 'Set ' + (si+1)}
-                    </button>`).join('')}
-            </div>
-            <div>
-                <textarea onchange="updateExNotes(${idx}, this.value)"
-                    placeholder="Notes (e.g., red band on rig, 53lb KB...)"
-                    class="w-full text-xs px-3 py-2 rounded-lg resize-none"
-                    style="background:#1a1a1a; border:1px solid #242424; color:#888;"
-                    rows="2">${ex.notes || ''}</textarea>
-            </div>
-        </div>`;
+            ${ex.restSeconds>0?`<button onclick="startTimer(${ex.restSeconds})" class="text-xs px-2 py-1 rounded flex-shrink-0" style="background:#1a1a1a;color:#42c8f5;border:1px solid #2a2a2a;">⏱ ${ex.restSeconds}s</button>`:''}
+        </div>
+        <div class="flex gap-2 flex-wrap mb-3">
+            ${ex.sets.map((s,si)=>`<button onclick="toggleCheck(${idx},${si})"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style="${s.checked?'background:#c8f542;color:#000;':'background:#1a1a1a;color:#555;border:1px solid #333;'}">
+                ${s.checked?'✓ '+(si+1):'Set '+(si+1)}
+            </button>`).join('')}
+        </div>
+        <textarea onchange="updateExNotes(${idx},this.value)"
+            placeholder="Notes (e.g., red band on rig, 53lb KB...)"
+            class="w-full text-xs px-3 py-2 rounded-lg resize-none"
+            style="background:#1a1a1a;border:1px solid #242424;color:#888;" rows="2">${ex.notes||''}</textarea>
+    </div>`;
 }
 
+// ── WEIGHT EXERCISE ───────────────────────────────────────────────────────────
 function renderWeightEx(ex, idx) {
     const last = getLastWorkout(state.currentWorkout.day);
-    const lastEx = last?.exercises?.find(e => e.name === ex.name);
-    const lastPerf = lastEx?.sets?.filter(s => s.weight || s.reps)
-        .map(s => `${s.weight||'?'}lbs×${s.reps||'?'}`).join(', ');
+    const lastEx = last?.exercises?.find(e=>e.name===ex.name);
+    const lastPerf = lastEx?.sets?.filter(s=>s.weight||s.reps).map(s=>`${s.weight||'?'}×${s.reps||'?'}`).join('  ');
 
-    return `
-        <div class="p-4">
-            <div class="flex items-start justify-between mb-2">
-                <div class="flex-1">
-                    <div class="font-medium text-sm">${ex.name}</div>
-                    <div class="text-xs mt-0.5" style="color:#555">${ex.sets.length} × ${ex.targetReps}</div>
-                    ${ex.templateNotes ? `<div class="text-xs mt-1 italic" style="color:#4a7c00">${ex.templateNotes}</div>` : ''}
-                </div>
-                <button onclick="editExName(${idx})" class="text-xs px-2 py-1 rounded ml-2" style="color:#555; background:#1a1a1a; border:1px solid #242424;">Edit</button>
+    return `<div class="p-4">
+        <div class="flex items-start justify-between mb-2">
+            <div class="flex-1 pr-2">
+                <div class="font-medium text-sm">${ex.name}</div>
+                <div class="text-xs mt-0.5" style="color:#555">${ex.sets.length} × ${ex.targetReps}</div>
+                ${ex.templateNotes?`<div class="text-xs mt-1 italic" style="color:#4a7c00">${ex.templateNotes}</div>`:''}
             </div>
+            <button onclick="editExName(${idx})" class="text-xs px-2 py-1 rounded flex-shrink-0" style="color:#444;background:#1a1a1a;border:1px solid #242424;">Edit</button>
+        </div>
 
-            ${lastPerf ? `<div class="text-xs px-3 py-2 rounded-lg mb-2" style="background:#1a1a1a; color:#555;"><span style="color:#666">Last time:</span> ${lastPerf}</div>` : ''}
-            ${lastEx?.notes ? `<div class="text-xs px-3 py-2 rounded-lg mb-2 italic" style="background:#1a1a00; color:#6a8a00;">📝 ${lastEx.notes}</div>` : ''}
+        ${lastPerf?`<div class="text-xs px-3 py-2 rounded-lg mb-2" style="background:#1a1a1a;color:#555;"><span style="color:#666">Last:</span> ${lastPerf}</div>`:''}
+        ${lastEx?.notes?`<div class="text-xs px-3 py-2 rounded-lg mb-2 italic" style="background:#1a1f00;color:#6a8a00;">📝 ${lastEx.notes}</div>`:''}
 
-            <div class="space-y-2 mb-2">
-                ${ex.sets.map((set, si) => `
-                    <div class="flex items-center gap-2 px-3 py-2 rounded-lg ${set.done ? 'set-complete' : ''}" style="${!set.done ? 'background:#1a1a1a; border:1px solid #242424;' : 'border:1px solid #c8f542;'}">
-                        <span class="text-xs w-10" style="color:#555">Set ${si+1}</span>
-                        <input type="number" value="${set.weight||''}"
-                            onchange="updateSet(${idx},${si},'weight',this.value)"
-                            placeholder="lbs" class="w-20 px-2 py-1 rounded text-sm text-center"
-                            style="background:#111; border:1px solid #333; color:#e8e8e8;">
-                        <span class="text-xs" style="color:#444">×</span>
-                        <input type="number" value="${set.reps||''}"
-                            onchange="updateSet(${idx},${si},'reps',this.value)"
-                            placeholder="reps" class="w-16 px-2 py-1 rounded text-sm text-center"
-                            style="background:#111; border:1px solid #333; color:#e8e8e8;">
-                        <button onclick="markSetDone(${idx},${si})"
-                            class="ml-auto px-2 py-1 rounded text-xs font-bold"
-                            style="${set.done ? 'background:#c8f542; color:#000;' : 'background:#1a1a1a; color:#555; border:1px solid #333;'}">
-                            ${set.done ? '✓' : '✓'}
-                        </button>
-                        ${ex.restSeconds > 0 ? `<button onclick="startTimer(${ex.restSeconds})" class="px-2 py-1 rounded text-xs" style="background:#1a1a1a; color:#42c8f5; border:1px solid #2a2a2a;">⏱</button>` : ''}
-                    </div>`).join('')}
-            </div>
+        <div class="space-y-2 mb-2">
+            ${ex.sets.map((set,si)=>`
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg" style="background:#1a1a1a;border:1px solid #2a2a2a;">
+                <span class="text-xs w-10 flex-shrink-0" style="color:#444">Set ${si+1}</span>
+                <input type="number" value="${set.weight||''}"
+                    onchange="updateSet(${idx},${si},'weight',this.value)"
+                    placeholder="lbs" class="w-20 px-2 py-1 rounded text-sm text-center"
+                    style="background:#111;border:1px solid #333;color:#e8e8e8;">
+                <span class="text-xs" style="color:#333">×</span>
+                <input type="number" value="${set.reps||''}"
+                    onchange="updateSet(${idx},${si},'reps',this.value)"
+                    placeholder="reps" class="w-16 px-2 py-1 rounded text-sm text-center"
+                    style="background:#111;border:1px solid #333;color:#e8e8e8;">
+                <button onclick="startTimer(${ex.restSeconds||60})" class="ml-auto px-3 py-1 rounded text-xs font-medium flex-shrink-0"
+                    style="background:#1a1a1a;color:#42c8f5;border:1px solid #2a2a2a;">
+                    ⏱ Rest
+                </button>
+            </div>`).join('')}
+        </div>
 
-            <button onclick="addSet(${idx})" class="text-xs mb-2" style="color:#42c8f5;">+ Add Set</button>
+        <button onclick="addSet(${idx})" class="text-xs mb-3" style="color:#42c8f5;">+ Add Set</button>
 
-            <textarea onchange="updateExNotes(${idx}, this.value)"
-                placeholder="Notes (e.g., felt strong, used 35lb KB...)"
-                class="w-full text-xs px-3 py-2 rounded-lg resize-none"
-                style="background:#1a1a1a; border:1px solid #242424; color:#888;"
-                rows="2">${ex.notes || ''}</textarea>
-        </div>`;
+        <textarea onchange="updateExNotes(${idx},this.value)"
+            placeholder="Notes (e.g., felt strong, used 35lb KB...)"
+            class="w-full text-xs px-3 py-2 rounded-lg resize-none"
+            style="background:#1a1a1a;border:1px solid #242424;color:#888;" rows="2">${ex.notes||''}</textarea>
+    </div>`;
 }
 
-function restTimerHTML() {
+// ── REST TIMER ────────────────────────────────────────────────────────────────
+function renderTimerEl() {
     const { remaining, total } = state.activeTimer;
-    const prog = ((total - remaining) / total) * 283;
-    const m = Math.floor(remaining / 60);
-    const s = remaining % 60;
-    return `
-        <div class="rounded-lg p-4 mb-4 timer-pulse" style="background:#161616; border:1px solid #42c8f5;">
-            <div class="flex items-center justify-between">
-                <span class="text-sm font-bold" style="color:#42c8f5;">REST TIMER</span>
-                <button onclick="stopTimer()" class="text-xs px-3 py-1 rounded" style="color:#f00; background:#1a0000; border:1px solid #300;">Stop</button>
-            </div>
-            <div class="flex items-center justify-center mt-2" style="position:relative; height:80px;">
-                <svg width="80" height="80" style="position:absolute; transform:rotate(-90deg)">
-                    <circle cx="40" cy="40" r="35" stroke="#242424" stroke-width="6" fill="none"/>
-                    <circle cx="40" cy="40" r="35" stroke="#42c8f5" stroke-width="6" fill="none"
-                        stroke-dasharray="220" stroke-dashoffset="${220 - (prog * 220/283)}"
-                        style="transition:stroke-dashoffset 1s linear;"/>
-                </svg>
-                <div class="text-2xl font-black" style="color:#42c8f5; position:relative;">${m}:${s.toString().padStart(2,'0')}</div>
-            </div>
-        </div>`;
+    const prog = (1 - remaining/total) * 220;
+    const m = Math.floor(remaining/60), s = remaining%60;
+    return `<div class="rounded-lg p-4 mb-4 timer-pulse" style="background:#161616;border:1px solid #42c8f5;">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-bold" style="color:#42c8f5;">REST TIMER</span>
+            <button onclick="stopTimer()" class="text-xs px-3 py-1 rounded" style="color:#f55;background:#1a0000;border:1px solid #300;">Stop</button>
+        </div>
+        <div class="flex items-center justify-center" style="position:relative;height:80px;">
+            <svg width="80" height="80" style="position:absolute;transform:rotate(-90deg)">
+                <circle cx="40" cy="40" r="35" stroke="#242424" stroke-width="6" fill="none"/>
+                <circle cx="40" cy="40" r="35" stroke="#42c8f5" stroke-width="6" fill="none"
+                    stroke-dasharray="220" stroke-dashoffset="${220-prog}"
+                    style="transition:stroke-dashoffset 1s linear;"/>
+            </svg>
+            <div class="text-2xl font-black" style="color:#42c8f5;position:relative;">${m}:${String(s).padStart(2,'0')}</div>
+        </div>
+    </div>`;
 }
 
-// ── TIMER ─────────────────────────────────────────────────────────────────────
 function startTimer(seconds) {
     if (state.activeTimer?.interval) clearInterval(state.activeTimer.interval);
-    state.activeTimer = { total: seconds, remaining: seconds, interval: null };
+    state.activeTimer = { total:seconds, remaining:seconds, interval:null };
     state.activeTimer.interval = setInterval(() => {
         state.activeTimer.remaining--;
         if (state.activeTimer.remaining <= 0) {
             stopTimer();
-            // Vibrate if available
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+            if (navigator.vibrate) navigator.vibrate([200,100,200]);
         } else {
-            // Just re-render the timer portion
-            const timerEl = document.querySelector('.timer-pulse');
-            if (timerEl) {
-                const { remaining, total } = state.activeTimer;
-                const prog = ((total - remaining) / total) * 283;
-                const m = Math.floor(remaining / 60);
-                const s = remaining % 60;
-                timerEl.innerHTML = `
-                    <div class="flex items-center justify-between">
+            const el = document.querySelector('.timer-pulse');
+            if (el) {
+                const { remaining:r, total:t } = state.activeTimer;
+                const prog = (1-r/t)*220;
+                const m=Math.floor(r/60), s=r%60;
+                el.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
                         <span class="text-sm font-bold" style="color:#42c8f5;">REST TIMER</span>
-                        <button onclick="stopTimer()" class="text-xs px-3 py-1 rounded" style="color:#f00; background:#1a0000; border:1px solid #300;">Stop</button>
+                        <button onclick="stopTimer()" class="text-xs px-3 py-1 rounded" style="color:#f55;background:#1a0000;border:1px solid #300;">Stop</button>
                     </div>
-                    <div class="flex items-center justify-center mt-2" style="position:relative; height:80px;">
-                        <svg width="80" height="80" style="position:absolute; transform:rotate(-90deg)">
+                    <div class="flex items-center justify-center" style="position:relative;height:80px;">
+                        <svg width="80" height="80" style="position:absolute;transform:rotate(-90deg)">
                             <circle cx="40" cy="40" r="35" stroke="#242424" stroke-width="6" fill="none"/>
                             <circle cx="40" cy="40" r="35" stroke="#42c8f5" stroke-width="6" fill="none"
-                                stroke-dasharray="220" stroke-dashoffset="${220 - (prog * 220/283)}"
-                                style="transition:stroke-dashoffset 1s linear;"/>
+                                stroke-dasharray="220" stroke-dashoffset="${220-prog}" style="transition:stroke-dashoffset 1s linear;"/>
                         </svg>
-                        <div class="text-2xl font-black" style="color:#42c8f5; position:relative;">${m}:${s.toString().padStart(2,'0')}</div>
+                        <div class="text-2xl font-black" style="color:#42c8f5;position:relative;">${m}:${String(s).padStart(2,'0')}</div>
                     </div>`;
             }
         }
@@ -832,318 +636,243 @@ function stopTimer() {
 }
 
 // ── WORKOUT ACTIONS ───────────────────────────────────────────────────────────
-function toggleCheck(exIdx, setIdx) {
-    state.currentWorkout.exercises[exIdx].sets[setIdx].checked =
-        !state.currentWorkout.exercises[exIdx].sets[setIdx].checked;
-    // Auto start rest timer
-    const ex = state.currentWorkout.exercises[exIdx];
-    if (ex.sets[setIdx].checked && ex.restSeconds > 0) startTimer(ex.restSeconds);
+function toggleCheck(ei, si) {
+    state.currentWorkout.exercises[ei].sets[si].checked = !state.currentWorkout.exercises[ei].sets[si].checked;
+    const ex = state.currentWorkout.exercises[ei];
+    if (state.currentWorkout.exercises[ei].sets[si].checked && ex.restSeconds > 0) startTimer(ex.restSeconds);
     else render();
 }
-
-function markSetDone(exIdx, setIdx) {
-    const ex = state.currentWorkout.exercises[exIdx];
-    ex.sets[setIdx].done = !ex.sets[setIdx].done;
-    if (ex.sets[setIdx].done && ex.restSeconds > 0) startTimer(ex.restSeconds);
-    else render();
-}
-
-function updateSet(exIdx, setIdx, field, value) {
-    state.currentWorkout.exercises[exIdx].sets[setIdx][field] = value;
-}
-
-function updateExNotes(exIdx, val) {
-    state.currentWorkout.exercises[exIdx].notes = val;
-}
-
-function addSet(exIdx) {
-    const ex = state.currentWorkout.exercises[exIdx];
-    ex.sets.push({ weight: ex.sets[ex.sets.length-1]?.weight || '', reps: '', done: false });
+function updateSet(ei, si, field, val) { state.currentWorkout.exercises[ei].sets[si][field] = val; }
+function updateExNotes(ei, val) { state.currentWorkout.exercises[ei].notes = val; }
+function addSet(ei) {
+    const ex = state.currentWorkout.exercises[ei];
+    ex.sets.push({ weight: ex.sets[ex.sets.length-1]?.weight||'', reps:'' });
     render();
 }
-
-function editExName(exIdx) {
-    const ex = state.currentWorkout.exercises[exIdx];
-    const name = prompt('Edit exercise name:', ex.name);
-    if (name?.trim()) { ex.name = name.trim(); render(); }
+function editExName(ei) {
+    const n = prompt('Edit name:', state.currentWorkout.exercises[ei].name);
+    if (n?.trim()) { state.currentWorkout.exercises[ei].name=n.trim(); render(); }
 }
-
 function addExercise() {
     const name = prompt('Exercise name:');
     if (!name) return;
     state.currentWorkout.exercises.push({
-        name, isCheckbox: false, blockLabel: 'CUSTOM', blockType: 'superset',
-        sets: [{ weight: '', reps: '', done: false }],
-        templateNotes: '', targetReps: '', restSeconds: 60, notes: ''
+        name, isCheckbox:false, blockLabel:'CUSTOM', blockType:'superset',
+        sets:[{weight:'',reps:''}], targetReps:'', restSeconds:60,
+        templateNotes:'', notes:''
     });
     render();
 }
-
 async function finishWorkout() {
     if (!confirm('Finish workout?')) return;
-    state.workouts.push({ ...state.currentWorkout });
+    state.workouts.push({...state.currentWorkout});
     state.currentWorkout = null;
     stopTimer();
     await storage.set('sp2-workouts', state.workouts);
     render();
 }
-
 function cancelWorkout() {
-    if (confirm('Cancel workout? Progress will be lost.')) {
-        state.currentWorkout = null;
-        stopTimer();
-        render();
+    if (confirm('Cancel? Progress will be lost.')) {
+        state.currentWorkout = null; stopTimer(); render();
     }
 }
 
 // ── HISTORY ───────────────────────────────────────────────────────────────────
 function showHistory() {
     const byDay = {};
-    state.workouts.forEach(w => {
-        if (!byDay[w.day]) byDay[w.day] = [];
-        byDay[w.day].push(w);
-    });
-    Object.keys(byDay).forEach(d => byDay[d].sort((a,b) => new Date(b.date)-new Date(a.date)));
+    state.workouts.forEach(w => { if (!byDay[w.day]) byDay[w.day]=[]; byDay[w.day].push(w); });
+    Object.keys(byDay).forEach(d => byDay[d].sort((a,b)=>new Date(b.date)-new Date(a.date)));
 
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-50 overflow-y-auto overlay-bg';
-    overlay.innerHTML = `
-        <div class="min-h-screen p-4">
-            <div class="max-w-2xl mx-auto rounded-xl overflow-hidden" style="background:#111; border:1px solid #242424;">
-                <div class="sticky top-0 px-5 py-4 flex justify-between items-center" style="background:#161616; border-bottom:1px solid #242424;">
-                    <h2 class="text-lg font-black" style="color:#c8f542;">WORKOUT HISTORY</h2>
-                    <button onclick="this.closest('.fixed').remove()" class="text-2xl" style="color:#555;">×</button>
-                </div>
-                <div class="p-4 space-y-4">
-                    ${Object.keys(byDay).map(day => `
-                        <div>
-                            <h3 class="text-xs font-bold mb-2" style="color:#c8f542; letter-spacing:2px;">${day.toUpperCase()}</h3>
-                            ${byDay[day].map(w => `
-                                <div class="rounded-lg p-4 mb-2" style="background:#161616; border:1px solid #242424;">
-                                    <div class="flex justify-between items-start mb-3">
-                                        <div>
-                                            <div class="text-sm font-bold">${new Date(w.date).toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'})}</div>
-                                            <div class="text-xs" style="color:#555">Week ${w.week}</div>
-                                        </div>
-                                        <div class="text-xs" style="color:#555">${w.exercises?.length || 0} exercises</div>
-                                    </div>
-                                    ${w.exercises?.filter(e => !e.isCheckbox && e.sets?.some(s => s.weight)).map(e => `
-                                        <div class="mb-2">
-                                            <div class="text-xs font-medium mb-1" style="color:#888">${e.name}</div>
-                                            <div class="text-xs" style="color:#555">${e.sets.filter(s=>s.weight||s.reps).map(s=>`${s.weight||'?'}lbs×${s.reps||'?'}`).join(' · ')}</div>
-                                            ${e.notes ? `<div class="text-xs italic mt-0.5" style="color:#4a7c00">${e.notes}</div>` : ''}
-                                        </div>`).join('') || ''}
-                                </div>`).join('')}
-                        </div>`).join('') || '<div class="text-center py-8" style="color:#555">No workouts logged yet</div>'}
-                </div>
+    overlay.innerHTML = `<div class="min-h-screen p-4">
+        <div class="max-w-2xl mx-auto rounded-xl overflow-hidden" style="background:#111;border:1px solid #242424;">
+            <div class="sticky top-0 px-5 py-4 flex justify-between items-center" style="background:#161616;border-bottom:1px solid #242424;">
+                <h2 class="text-lg font-black" style="color:#c8f542;">WORKOUT HISTORY</h2>
+                <button onclick="this.closest('.fixed').remove()" class="text-2xl" style="color:#555;">×</button>
             </div>
-        </div>`;
+            <div class="p-4 space-y-5">
+                ${Object.keys(byDay).length ? Object.keys(byDay).map(day => `
+                    <div>
+                        <h3 class="text-xs font-bold mb-2" style="color:#c8f542;letter-spacing:2px;">${day.toUpperCase()}</h3>
+                        ${byDay[day].map(w => `
+                        <div class="rounded-lg p-4 mb-2" style="background:#161616;border:1px solid #242424;">
+                            <div class="flex justify-between items-start mb-2">
+                                <div>
+                                    <div class="text-sm font-bold">${new Date(w.date).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}</div>
+                                    <div class="text-xs" style="color:#444">Week ${w.week}</div>
+                                </div>
+                                <div class="text-xs" style="color:#444">${w.exercises?.length||0} exercises</div>
+                            </div>
+                            ${w.exercises?.filter(e=>!e.isCheckbox&&e.sets?.some(s=>s.weight||s.reps)).map(e=>`
+                                <div class="mb-2 pl-2" style="border-left:2px solid #242424;">
+                                    <div class="text-xs font-medium" style="color:#888">${e.name}</div>
+                                    <div class="text-xs" style="color:#444">${e.sets.filter(s=>s.weight||s.reps).map(s=>`${s.weight||'?'}lbs × ${s.reps||'?'}`).join(' · ')}</div>
+                                    ${e.notes?`<div class="text-xs italic mt-0.5" style="color:#4a7c00">${e.notes}</div>`:''}
+                                </div>`).join('')||''}
+                        </div>`).join('')}
+                    </div>`).join('') : '<div class="text-center py-8" style="color:#444">No workouts logged yet</div>'}
+            </div>
+        </div>
+    </div>`;
     document.body.appendChild(overlay);
 }
 
 // ── DASHBOARD ─────────────────────────────────────────────────────────────────
-function dashboardView() {
+function renderDashboardView() {
     const weekDates = getWeekDates();
-    const thisWeek = state.workouts.filter(w => weekDates.includes(new Date(w.date).toDateString()));
+    const thisWeek = state.workouts.filter(w=>weekDates.includes(new Date(w.date).toDateString()));
+    const seenWeeks = new Set(state.workouts.map(w=>getISOWeek(new Date(w.date))));
 
-    // PRs
     const prs = {};
     state.workouts.forEach(w => {
         w.exercises?.forEach(ex => {
             if (ex.isCheckbox) return;
             ex.sets?.forEach(s => {
                 if (s.weight && s.reps) {
-                    const vol = parseFloat(s.weight) * parseFloat(s.reps);
-                    if (!prs[ex.name] || vol > prs[ex.name].vol) {
-                        prs[ex.name] = { weight: s.weight, reps: s.reps, vol, date: w.date };
-                    }
+                    const vol = parseFloat(s.weight)*parseFloat(s.reps);
+                    if (!prs[ex.name]||vol>prs[ex.name].vol) prs[ex.name]={weight:s.weight,reps:s.reps,vol,date:w.date};
                 }
             });
         });
     });
-    const prList = Object.entries(prs).sort((a,b) => new Date(b[1].date)-new Date(a[1].date)).slice(0, 6);
+    const prList = Object.entries(prs).sort((a,b)=>new Date(b[1].date)-new Date(a[1].date)).slice(0,6);
+    const DC = {'Upper Body':'#c8f542','Lower Body':'#42c8f5','Full Body + Functional':'#f57c42','Mobility + Flow':'#b842f5'};
 
-    // Streak
-    let streak = 0;
-    const sorted = [...state.workouts].sort((a,b) => new Date(b.date)-new Date(a.date));
-    const seenWeeks = new Set();
-    sorted.forEach(w => {
-        const wk = getISOWeek(new Date(w.date));
-        seenWeeks.add(wk);
-    });
-
-    return `
-        <div class="p-4">
-            <h2 class="text-xs font-bold mb-4" style="color:#555; letter-spacing:2px;">PERFORMANCE</h2>
-
-            <div class="grid grid-cols-3 gap-3 mb-4">
-                <div class="rounded-lg p-3 text-center" style="background:#161616; border:1px solid #242424;">
-                    <div class="text-2xl font-black" style="color:#c8f542">${thisWeek.length}</div>
-                    <div class="text-xs mt-1" style="color:#555">This Week</div>
-                </div>
-                <div class="rounded-lg p-3 text-center" style="background:#161616; border:1px solid #242424;">
-                    <div class="text-2xl font-black" style="color:#42c8f5">${state.workouts.length}</div>
-                    <div class="text-xs mt-1" style="color:#555">Total</div>
-                </div>
-                <div class="rounded-lg p-3 text-center" style="background:#161616; border:1px solid #242424;">
-                    <div class="text-2xl font-black" style="color:#f57c42">${seenWeeks.size}</div>
-                    <div class="text-xs mt-1" style="color:#555">Weeks Active</div>
-                </div>
+    return `<div class="p-4">
+        <h2 class="text-xs font-bold mb-4" style="color:#444;letter-spacing:2px;">PERFORMANCE</h2>
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="rounded-lg p-3 text-center" style="background:#161616;border:1px solid #242424;">
+                <div class="text-2xl font-black" style="color:#c8f542">${thisWeek.length}</div>
+                <div class="text-xs mt-1" style="color:#444">This Week</div>
             </div>
-
-            ${prList.length ? `
-                <div class="rounded-lg overflow-hidden mb-4" style="border:1px solid #242424;">
-                    <div class="px-4 py-3" style="background:#1a2e00; border-bottom:1px solid #242424;">
-                        <span class="text-xs font-bold" style="color:#c8f542; letter-spacing:2px;">🏆 PERSONAL RECORDS</span>
-                    </div>
-                    <div class="divide-y" style="border-color:#242424;">
-                        ${prList.map(([name, pr]) => `
-                            <div class="px-4 py-3 flex justify-between items-center">
-                                <div>
-                                    <div class="text-sm font-medium">${name}</div>
-                                    <div class="text-xs" style="color:#555">${new Date(pr.date).toLocaleDateString()}</div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="font-black" style="color:#c8f542">${pr.weight}lbs</div>
-                                    <div class="text-xs" style="color:#555">${pr.reps} reps</div>
-                                </div>
-                            </div>`).join('')}
-                    </div>
-                </div>` : ''}
-
-            <!-- Volume by day type -->
-            <div class="rounded-lg overflow-hidden" style="border:1px solid #242424;">
-                <div class="px-4 py-3" style="background:#161616; border-bottom:1px solid #242424;">
-                    <span class="text-xs font-bold" style="color:#888; letter-spacing:2px;">SESSIONS BY TYPE</span>
-                </div>
-                <div class="p-4 space-y-3">
-                    ${(state.program?.split || []).map(day => {
-                        const count = state.workouts.filter(w => w.day === day).length;
-                        const max = Math.max(...(state.program?.split||[]).map(d => state.workouts.filter(w=>w.day===d).length), 1);
-                        const pct = max > 0 ? (count/max)*100 : 0;
-                        const dc = { 'Upper Body':'#c8f542','Lower Body':'#42c8f5','Full Body + Functional':'#f57c42','Mobility + Flow':'#b842f5' }[day] || '#888';
-                        return `
-                            <div>
-                                <div class="flex justify-between text-xs mb-1">
-                                    <span style="color:#888">${day}</span>
-                                    <span style="color:${dc}; font-weight:bold;">${count}</span>
-                                </div>
-                                <div class="h-1.5 rounded-full" style="background:#242424;">
-                                    <div class="h-full rounded-full transition-all" style="width:${pct}%; background:${dc};"></div>
-                                </div>
-                            </div>`;
-                    }).join('')}
-                </div>
+            <div class="rounded-lg p-3 text-center" style="background:#161616;border:1px solid #242424;">
+                <div class="text-2xl font-black" style="color:#42c8f5">${state.workouts.length}</div>
+                <div class="text-xs mt-1" style="color:#444">Total</div>
             </div>
-        </div>`;
-}
+            <div class="rounded-lg p-3 text-center" style="background:#161616;border:1px solid #242424;">
+                <div class="text-2xl font-black" style="color:#f57c42">${seenWeeks.size}</div>
+                <div class="text-xs mt-1" style="color:#444">Weeks Active</div>
+            </div>
+        </div>
 
-function getISOWeek(date) {
-    const d = new Date(date);
-    d.setHours(0,0,0,0);
-    d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
-    const week1 = new Date(d.getFullYear(), 0, 4);
-    return `${d.getFullYear()}-${Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7) + 1}`;
+        ${prList.length ? `
+        <div class="rounded-lg overflow-hidden mb-4" style="border:1px solid #242424;">
+            <div class="px-4 py-3" style="background:#1a2e00;border-bottom:1px solid #242424;">
+                <span class="text-xs font-bold" style="color:#c8f542;letter-spacing:2px;">🏆 PERSONAL RECORDS</span>
+            </div>
+            <div class="divide-y" style="border-color:#242424;">
+                ${prList.map(([name,pr])=>`
+                <div class="px-4 py-3 flex justify-between items-center">
+                    <div>
+                        <div class="text-sm font-medium">${name}</div>
+                        <div class="text-xs" style="color:#444">${new Date(pr.date).toLocaleDateString()}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-black" style="color:#c8f542">${pr.weight}lbs</div>
+                        <div class="text-xs" style="color:#444">${pr.reps} reps</div>
+                    </div>
+                </div>`).join('')}
+            </div>
+        </div>` : ''}
+
+        <div class="rounded-lg overflow-hidden" style="border:1px solid #242424;">
+            <div class="px-4 py-3" style="background:#161616;border-bottom:1px solid #242424;">
+                <span class="text-xs font-bold" style="color:#666;letter-spacing:2px;">SESSIONS BY TYPE</span>
+            </div>
+            <div class="p-4 space-y-3">
+                ${(state.program?.split||[]).map(day=>{
+                    const count = state.workouts.filter(w=>w.day===day).length;
+                    const maxC = Math.max(...(state.program?.split||[]).map(d=>state.workouts.filter(w=>w.day===d).length),1);
+                    const dc = DC[day]||'#888';
+                    return `<div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span style="color:#666">${day}</span>
+                            <span style="color:${dc};font-weight:bold;">${count}</span>
+                        </div>
+                        <div class="h-1.5 rounded-full" style="background:#242424;">
+                            <div class="h-full rounded-full" style="width:${maxC>0?(count/maxC)*100:0}%;background:${dc};"></div>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+        </div>
+    </div>`;
 }
 
 // ── HABITS ────────────────────────────────────────────────────────────────────
-function habitsView() {
+function renderHabitsView() {
     const today = new Date().toDateString();
     const weekDates = getWeekDates();
+    const todayHabits = state.habits.filter(h=>h.frequency==='Daily');
+    const doneToday = todayHabits.filter(h=>h.completions?.includes(today)).length;
 
-    return `
-        <div class="p-4">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xs font-bold" style="color:#555; letter-spacing:2px;">HABITS</h2>
-                <button onclick="addHabit()" class="text-xs px-3 py-1.5 rounded-lg font-bold" style="background:#c8f542; color:#000;">+ Add</button>
+    return `<div class="p-4">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <h2 class="text-xs font-bold" style="color:#444;letter-spacing:2px;">HABITS</h2>
+                <div class="text-xs mt-0.5" style="color:#666">${doneToday}/${todayHabits.length} daily done today</div>
             </div>
+            <button onclick="addHabit()" class="text-xs px-3 py-1.5 rounded-lg font-bold" style="background:#c8f542;color:#000;">+ Add</button>
+        </div>
 
-            <div class="space-y-2">
-                ${state.habits.map((habit, i) => renderHabit(habit, i, today, weekDates)).join('')}
-            </div>
-        </div>`;
+        <div class="space-y-2">
+            ${state.habits.map((h,i) => renderHabitRow(h, i, today, weekDates)).join('')}
+        </div>
+    </div>`;
 }
 
-function renderHabit(habit, i, today, weekDates) {
+function renderHabitRow(habit, i, today, weekDates) {
+    // Zone 2 weekly range habit
     if (habit.frequency === 'Weekly-Range') {
-        // Zone 2 range habit
-        const thisWeek = `${weekDates[0]}`;
-        const currentRange = habit.weeklyRange?.[thisWeek] || null;
-        const ranges = ['<120 min', '120–180 min', '181+ min'];
-        const done = currentRange !== null;
-        return `
-            <div class="rounded-lg p-4" style="background:#161616; border:1px solid ${done ? '#c8f542' : '#242424'};">
-                <div class="flex items-start justify-between mb-3">
-                    <div>
-                        <div class="font-medium text-sm">${habit.name}</div>
-                        <div class="text-xs mt-0.5" style="color:#555">Weekly · Zone 2 Minutes</div>
-                    </div>
-                    <button onclick="removeHabit(${i})" class="text-xs" style="color:#333;">×</button>
+        const weekKey = weekDates[0];
+        const current = habit.weeklyRange?.[weekKey] || null;
+        const ranges = ['< 120 min','120–180 min','181+ min'];
+        return `<div class="rounded-lg p-4" style="background:#161616;border:1px solid ${current?'#c8f542':'#242424'};">
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <div class="font-medium text-sm">${habit.name}</div>
+                    <div class="text-xs mt-0.5" style="color:#444">Weekly total minutes</div>
                 </div>
-                <div class="flex gap-2">
-                    ${ranges.map((r, ri) => `
-                        <button onclick="setZone2Range(${i}, '${r}')"
-                            class="flex-1 py-2 rounded-lg text-xs font-bold transition-all"
-                            style="${currentRange === r ? 'background:#c8f542; color:#000;' : 'background:#1a1a1a; color:#555; border:1px solid #333;'}">
-                            ${r}
-                        </button>`).join('')}
-                </div>
-                ${currentRange ? `<div class="text-xs mt-2" style="color:#6a8a00">✓ This week: ${currentRange}</div>` : ''}
-            </div>`;
+                <button onclick="removeHabit(${i})" class="text-lg leading-none" style="color:#333;">×</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                ${ranges.map(r=>`<button onclick="setZone2(${i},'${r}')"
+                    class="py-2 rounded-lg text-xs font-bold"
+                    style="${current===r?'background:#c8f542;color:#000;':'background:#1a1a1a;color:#555;border:1px solid #333;'}">
+                    ${r}
+                </button>`).join('')}
+            </div>
+            ${current?`<div class="text-xs mt-2" style="color:#6a8a00;">✓ This week: ${current}</div>`:''}
+        </div>`;
     }
 
-    const isDaily = habit.frequency === 'Daily';
-    const doneToday = habit.completions?.includes(today);
-    const weekCount = weekDates.filter(d => habit.completions?.includes(d)).length;
-    const goalMet = isDaily ? doneToday : weekCount >= habit.target;
-
-    return `
-        <div class="rounded-lg p-4" style="background:#161616; border:1px solid ${goalMet ? '#c8f542' : '#242424'};">
-            <div class="flex items-center justify-between">
-                <div class="flex-1">
-                    <div class="font-medium text-sm">${habit.name}</div>
-                    <div class="text-xs mt-0.5" style="color:#555">
-                        ${isDaily ? (doneToday ? '✓ Done today' : 'Not done today') : `${weekCount}/${habit.target} this week`}
-                    </div>
-                </div>
-                <div class="flex items-center gap-2">
-                    ${!isDaily ? '' : ''}
-                    <button onclick="toggleHabit(${i})"
-                        class="w-10 h-10 rounded-lg font-bold text-lg transition-all"
-                        style="${(isDaily ? doneToday : false) ? 'background:#c8f542; color:#000;' : 'background:#1a1a1a; color:#555; border:1px solid #333;'}">
-                        ${(isDaily && doneToday) ? '✓' : '○'}
-                    </button>
-                    <button onclick="removeHabit(${i})" class="text-xs" style="color:#333;">×</button>
-                </div>
-            </div>
-            ${!isDaily ? `
-                <div class="flex gap-1 mt-3">
-                    ${weekDates.map((d, di) => {
-                        const done = habit.completions?.includes(d);
-                        const isToday = d === new Date().toDateString();
-                        return `<button onclick="toggleHabitDate(${i},'${d}')"
-                            class="flex-1 py-1.5 rounded text-xs font-bold"
-                            style="${done ? 'background:#c8f542; color:#000;' : isToday ? 'background:#1a2e00; color:#6a8a00; border:1px solid #c8f542;' : 'background:#1a1a1a; color:#333;'}">
-                            ${['S','M','T','W','T','F','S'][di]}
-                        </button>`;
-                    }).join('')}
-                </div>` : ''}
-        </div>`;
+    // Standard daily habit — single tap checkbox
+    const done = habit.completions?.includes(today);
+    return `<div class="rounded-lg px-4 py-3 flex items-center justify-between" style="background:#161616;border:1px solid ${done?'#c8f542':'#242424'};">
+        <div class="flex-1">
+            <div class="text-sm font-medium">${habit.name}</div>
+        </div>
+        <div class="flex items-center gap-3 ml-3">
+            <button onclick="toggleHabit(${i})"
+                class="w-10 h-10 rounded-lg font-bold text-lg transition-all flex-shrink-0"
+                style="${done?'background:#c8f542;color:#000;':'background:#1a1a1a;color:#444;border:1px solid #333;'}">
+                ${done?'✓':'○'}
+            </button>
+            <button onclick="removeHabit(${i})" class="text-lg leading-none flex-shrink-0" style="color:#333;">×</button>
+        </div>
+    </div>`;
 }
 
-function setZone2Range(idx, range) {
-    const weekDates = getWeekDates();
-    const weekKey = weekDates[0];
-    if (!state.habits[idx].weeklyRange) state.habits[idx].weeklyRange = {};
-    if (state.habits[idx].weeklyRange[weekKey] === range) {
-        delete state.habits[idx].weeklyRange[weekKey];
+function setZone2(i, range) {
+    const weekKey = getWeekDates()[0];
+    if (!state.habits[i].weeklyRange) state.habits[i].weeklyRange = {};
+    if (state.habits[i].weeklyRange[weekKey] === range) {
+        delete state.habits[i].weeklyRange[weekKey];
     } else {
-        state.habits[idx].weeklyRange[weekKey] = range;
-        if (!state.habits[idx].completions) state.habits[idx].completions = [];
-        if (!state.habits[idx].completions.includes(weekKey)) state.habits[idx].completions.push(weekKey);
+        state.habits[i].weeklyRange[weekKey] = range;
     }
-    save();
-    render();
+    save(); render();
 }
 
 function toggleHabit(i) {
@@ -1152,64 +881,33 @@ function toggleHabit(i) {
     const idx = state.habits[i].completions.indexOf(today);
     if (idx > -1) state.habits[i].completions.splice(idx, 1);
     else state.habits[i].completions.push(today);
-    save();
-    render();
-}
-
-function toggleHabitDate(i, date) {
-    if (!state.habits[i].completions) state.habits[i].completions = [];
-    const idx = state.habits[i].completions.indexOf(date);
-    if (idx > -1) state.habits[i].completions.splice(idx, 1);
-    else state.habits[i].completions.push(date);
-    save();
-    render();
+    save(); render();
 }
 
 function removeHabit(i) {
-    if (confirm('Remove habit?')) {
-        state.habits.splice(i, 1);
-        save();
-        render();
-    }
+    if (confirm('Remove habit?')) { state.habits.splice(i,1); save(); render(); }
 }
 
 function addHabit() {
     const overlay = document.createElement('div');
     overlay.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 overlay-bg';
-    overlay.innerHTML = `
-        <div class="w-full max-w-md rounded-xl p-6" style="background:#161616; border:1px solid #333;">
-            <h3 class="text-lg font-black mb-4" style="color:#c8f542;">ADD HABIT</h3>
-            <input type="text" id="h-name" placeholder="Habit name" class="w-full px-3 py-2 rounded-lg mb-3 text-sm" style="background:#1a1a1a; border:1px solid #333; color:#e8e8e8;">
-            <select id="h-freq" onchange="document.getElementById('h-target-wrap').style.display=this.value==='Weekly'?'block':'none'"
-                class="w-full px-3 py-2 rounded-lg mb-3 text-sm" style="background:#1a1a1a; border:1px solid #333; color:#e8e8e8;">
-                <option value="Daily">Daily</option>
-                <option value="Weekly">Weekly</option>
-            </select>
-            <div id="h-target-wrap" style="display:none;" class="mb-3">
-                <input type="number" id="h-target" value="5" min="1" max="7" placeholder="Weekly target"
-                    class="w-full px-3 py-2 rounded-lg text-sm" style="background:#1a1a1a; border:1px solid #333; color:#e8e8e8;">
-            </div>
-            <div class="flex gap-3">
-                <button onclick="saveHabit()" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:#c8f542; color:#000;">Add</button>
-                <button onclick="this.closest('.fixed').remove()" class="flex-1 py-2 rounded-lg text-sm" style="background:#1a1a1a; color:#888; border:1px solid #333;">Cancel</button>
-            </div>
-        </div>`;
+    overlay.innerHTML = `<div class="w-full max-w-md rounded-xl p-6" style="background:#161616;border:1px solid #333;">
+        <h3 class="text-lg font-black mb-4" style="color:#c8f542;">ADD HABIT</h3>
+        <input type="text" id="h-name" placeholder="Habit name" class="w-full px-3 py-2 rounded-lg mb-4 text-sm" style="background:#1a1a1a;border:1px solid #333;color:#e8e8e8;">
+        <div class="flex gap-3">
+            <button onclick="saveHabit()" class="flex-1 py-2 rounded-lg font-bold text-sm" style="background:#c8f542;color:#000;">Add</button>
+            <button onclick="this.closest('.fixed').remove()" class="flex-1 py-2 rounded-lg text-sm" style="background:#1a1a1a;color:#888;border:1px solid #333;">Cancel</button>
+        </div>
+    </div>`;
     document.body.appendChild(overlay);
 }
 
 function saveHabit() {
     const name = document.getElementById('h-name').value;
-    const freq = document.getElementById('h-freq').value;
-    const target = freq === 'Weekly' ? parseInt(document.getElementById('h-target').value) : 1;
     if (!name) { alert('Enter a name'); return; }
-    state.habits.push({ name, frequency: freq, target, completions: [] });
+    state.habits.push({ name, frequency:'Daily', completions:[] });
     save();
     document.querySelector('.fixed.inset-0').remove();
-    render();
-}
-
-function switchView(v) {
-    state.view = v;
     render();
 }
 
